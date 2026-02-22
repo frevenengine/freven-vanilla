@@ -17,6 +17,8 @@ use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use std::sync::OnceLock;
 
+mod character_controller;
+
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
 
 pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
@@ -73,6 +75,12 @@ pub fn register(ctx: &mut ModContext<'_>) {
         ctx.register_worldgen(FLAT_WORLDGEN_KEY, flat_factory)
             .expect("vanilla essentials must register freven.vanilla:flat worldgen");
     }
+
+    ctx.register_character_controller(
+        character_controller::HUMANOID_KEY,
+        character_controller::humanoid_factory,
+    )
+    .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
 }
 
 fn flat_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
