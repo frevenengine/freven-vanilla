@@ -46,6 +46,8 @@ struct FlatBlockIds {
 }
 
 pub fn register(ctx: &mut ModContext<'_>) {
+    ctx.on_start_common(log_start_common);
+
     let air = ctx
         .register_block(AIR_KEY, air_def())
         .expect("vanilla essentials must register freven.core:air block");
@@ -89,7 +91,12 @@ pub fn register(ctx: &mut ModContext<'_>) {
     }
 
     if ctx.side() == Side::Client {
+        ctx.on_start_client(log_start_client);
         ctx.on_client_app(register_client_plugins);
+    }
+
+    if ctx.side() == Side::Server {
+        ctx.on_start_server(log_start_server);
     }
 
     ctx.register_character_controller(
@@ -101,6 +108,18 @@ pub fn register(ctx: &mut ModContext<'_>) {
 
 fn register_client_plugins(installer: &mut dyn freven_api::ClientAppInstaller) {
     installer.install_plugin(CLIENT_PLUGIN_BLOCK_INTERACTION);
+}
+
+fn log_start_common(_api: &mut freven_api::CommonApi<'_>) {
+    tracing::info!("vanilla lifecycle: start_common");
+}
+
+fn log_start_client(_api: &mut freven_api::ClientApi<'_>) {
+    tracing::info!("vanilla lifecycle: start_client");
+}
+
+fn log_start_server(_api: &mut freven_api::ServerApi<'_>) {
+    tracing::info!("vanilla lifecycle: start_server");
 }
 
 fn flat_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
