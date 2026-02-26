@@ -1,0 +1,19 @@
+schema = 1
+id = "freven.vanilla"
+version = "0.1.0"
+title = "Vanilla"
+
+[content]
+root = "content"
+manifest = "content.manifest"
+
+[requirements]
+engine = ">=0.1.0"
+
+[[mods]]
+id = "freven.vanilla:core"
+version = "^0.1"
+
+[[mods]]
+id = "freven.vanilla:essentials"
+version = "^0.1"
