@@ -20,6 +20,7 @@ use std::sync::OnceLock;
 
 mod actions;
 mod character_controller;
+mod client;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
 
@@ -91,6 +92,8 @@ pub fn register(ctx: &mut ModContext<'_>) {
     }
 
     if ctx.side() == Side::Client {
+        ctx.on_start_client(client::block_interaction::start_client);
+        ctx.on_tick_client(client::block_interaction::tick_client);
         ctx.on_start_client(log_start_client);
         ctx.on_client_app(register_client_plugins);
     }
