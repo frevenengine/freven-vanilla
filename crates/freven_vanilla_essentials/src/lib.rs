@@ -10,13 +10,15 @@
 //! - keep output in SDK worldgen section format
 
 use freven_api::{
-    ModContext, ModDescriptor, ModSide, Side, WorldGenError, WorldGenInit, WorldGenOutput,
-    WorldGenProvider, WorldGenRequest, WorldGenSection,
+    ACTION_KIND_BLOCK_BREAK, ACTION_KIND_BLOCK_PLACE, ModContext, ModDescriptor, ModSide, Side,
+    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
+    WorldGenSection,
 };
 use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use std::sync::OnceLock;
 
+mod actions;
 mod character_controller;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
@@ -74,6 +76,15 @@ pub fn register(ctx: &mut ModContext<'_>) {
     if ctx.side() == Side::Server {
         ctx.register_worldgen(FLAT_WORLDGEN_KEY, flat_factory)
             .expect("vanilla essentials must register freven.vanilla:flat worldgen");
+
+        ctx.register_action_handler(
+            ACTION_KIND_BLOCK_BREAK,
+            actions::r#break::BreakActionHandler,
+        )
+        .expect("vanilla essentials must register freven:break action handler");
+
+        ctx.register_action_handler(ACTION_KIND_BLOCK_PLACE, actions::place::PlaceActionHandler)
+            .expect("vanilla essentials must register freven:place action handler");
     }
 
     ctx.register_character_controller(
