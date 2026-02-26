@@ -36,6 +36,7 @@ const DIRT_KEY: &str = "freven.vanilla:dirt";
 const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
+pub const CLIENT_PLUGIN_BLOCK_INTERACTION: &str = "freven.vanilla:block_interaction";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FlatBlockIds {
@@ -87,11 +88,19 @@ pub fn register(ctx: &mut ModContext<'_>) {
             .expect("vanilla essentials must register freven:place action handler");
     }
 
+    if ctx.side() == Side::Client {
+        ctx.on_client_app(register_client_plugins);
+    }
+
     ctx.register_character_controller(
         character_controller::HUMANOID_KEY,
         character_controller::humanoid_factory,
     )
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
+}
+
+fn register_client_plugins(installer: &mut dyn freven_api::ClientAppInstaller) {
+    installer.install_plugin(CLIENT_PLUGIN_BLOCK_INTERACTION);
 }
 
 fn flat_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
