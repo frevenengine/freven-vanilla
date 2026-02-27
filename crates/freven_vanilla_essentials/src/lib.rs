@@ -10,9 +10,8 @@
 //! - keep output in SDK worldgen section format
 
 use freven_api::{
-    ACTION_KIND_BLOCK_BREAK, ACTION_KIND_BLOCK_PLACE, ModContext, ModDescriptor, ModSide, Side,
-    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
-    WorldGenSection,
+    ActionKindId, ModContext, ModDescriptor, ModSide, Side, WorldGenError, WorldGenInit,
+    WorldGenOutput, WorldGenProvider, WorldGenRequest, WorldGenSection,
 };
 use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
@@ -37,7 +36,30 @@ const DIRT_KEY: &str = "freven.vanilla:dirt";
 const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
+static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 pub const CLIENT_PLUGIN_BLOCK_INTERACTION: &str = "freven.vanilla:block_interaction";
+const ACTION_KIND_BREAK_KEY: &str = "freven.vanilla:break";
+const ACTION_KIND_PLACE_KEY: &str = "freven.vanilla:place";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct VanillaActionKinds {
+    break_kind: ActionKindId,
+    place_kind: ActionKindId,
+}
+
+pub(crate) fn break_action_kind_id() -> ActionKindId {
+    VANILLA_ACTION_KINDS
+        .get()
+        .expect("vanilla action kinds must be initialized")
+        .break_kind
+}
+
+pub(crate) fn place_action_kind_id() -> ActionKindId {
+    VANILLA_ACTION_KINDS
+        .get()
+        .expect("vanilla action kinds must be initialized")
+        .place_kind
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FlatBlockIds {
@@ -77,17 +99,33 @@ pub fn register(ctx: &mut ModContext<'_>) {
         panic!("vanilla essentials block ids must remain deterministic across runtime builds");
     }
 
+    let break_kind = ctx
+        .register_action_kind(ACTION_KIND_BREAK_KEY)
+        .expect("vanilla essentials must register freven.vanilla:break action kind");
+    let place_kind = ctx
+        .register_action_kind(ACTION_KIND_PLACE_KEY)
+        .expect("vanilla essentials must register freven.vanilla:place action kind");
+    let action_kinds = VanillaActionKinds {
+        break_kind,
+        place_kind,
+    };
+    if let Err(existing) = VANILLA_ACTION_KINDS.set(action_kinds)
+        && *VANILLA_ACTION_KINDS
+            .get()
+            .expect("vanilla action kinds must be initialized")
+            != existing
+    {
+        panic!("vanilla action kinds must remain deterministic across runtime builds");
+    }
+
     if ctx.side() == Side::Server {
         ctx.register_worldgen(FLAT_WORLDGEN_KEY, flat_factory)
             .expect("vanilla essentials must register freven.vanilla:flat worldgen");
 
-        ctx.register_action_handler(
-            ACTION_KIND_BLOCK_BREAK,
-            actions::r#break::BreakActionHandler,
-        )
-        .expect("vanilla essentials must register freven:break action handler");
+        ctx.register_action_handler(break_kind, actions::r#break::BreakActionHandler)
+            .expect("vanilla essentials must register freven:break action handler");
 
-        ctx.register_action_handler(ACTION_KIND_BLOCK_PLACE, actions::place::PlaceActionHandler)
+        ctx.register_action_handler(place_kind, actions::place::PlaceActionHandler)
             .expect("vanilla essentials must register freven:place action handler");
     }
 
