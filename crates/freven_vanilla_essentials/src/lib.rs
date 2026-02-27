@@ -92,6 +92,12 @@ pub fn register(ctx: &mut ModContext<'_>) {
     }
 
     if ctx.side() == Side::Client {
+        ctx.register_client_control_provider(
+            client::control::HUMANOID_CONTROL_KEY,
+            client::control::humanoid_control_provider_factory,
+        )
+        .expect("vanilla essentials must register freven.vanilla:humanoid_controls");
+
         ctx.on_start_client(client::block_interaction::start_client);
         ctx.on_tick_client(client::block_interaction::tick_client);
         ctx.on_start_client(client::nameplates::start_client);
