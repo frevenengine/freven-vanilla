@@ -8,20 +8,18 @@ const OWNER: &str = "freven.vanilla:movement";
 pub const HUMANOID_CONTROL_KEY: &str = "freven.vanilla:humanoid_controls";
 
 pub fn humanoid_control_provider_factory(
-    init: ClientControlProviderInit,
+    _init: ClientControlProviderInit,
 ) -> Box<dyn ClientControlProvider> {
-    Box::new(HumanoidControlProvider::new(init.next_input_seq))
+    Box::new(HumanoidControlProvider::new())
 }
 
-#[derive(Debug, Clone)]
-pub struct HumanoidControlProvider {
-    next_input_seq: u32,
-}
+#[derive(Debug, Clone, Default)]
+pub struct HumanoidControlProvider;
 
 impl HumanoidControlProvider {
     #[must_use]
-    pub fn new(next_input_seq: u32) -> Self {
-        Self { next_input_seq }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -57,11 +55,7 @@ impl ClientControlProvider for HumanoidControlProvider {
 
         let (yaw_deg, pitch_deg) = device.view_angles_deg();
 
-        let input_seq = self.next_input_seq;
-        self.next_input_seq = self.next_input_seq.wrapping_add(1);
-
         ClientControlOutput {
-            input_seq,
             raw: RawInput {
                 move_x,
                 move_z,
@@ -74,8 +68,8 @@ impl ClientControlProvider for HumanoidControlProvider {
         }
     }
 
-    fn reset_input_seq(&mut self, next_input_seq: u32) {
-        self.next_input_seq = next_input_seq;
+    fn reset(&mut self) {
+        // No internal state yet.
     }
 }
 
