@@ -3,7 +3,7 @@ use freven_api::{
     ClientControlProviderInit, ClientKeyCode, RawInput, button_bits,
 };
 
-const OWNER: &str = "freven.vanilla:movement";
+const OWNER: &str = "freven.vanilla.essentials:movement";
 
 pub const HUMANOID_CONTROL_KEY: &str = "freven.vanilla:humanoid_controls";
 

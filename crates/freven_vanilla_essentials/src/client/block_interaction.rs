@@ -5,7 +5,7 @@ use freven_api::action_payloads::{ActionTarget, encode_break_payload_v1, encode_
 use freven_api::{ClientActionRequest, ClientBlockFace, ClientMouseButton, ClientPredictedEdit};
 use freven_core::blocks::storage;
 
-const OWNER: &str = "freven.client:action_prediction";
+const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
 const PLACE_BLOCK_ID: u8 = storage::STONE;

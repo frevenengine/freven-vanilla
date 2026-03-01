@@ -11,9 +11,9 @@ manifest = "content.manifest"
 engine = ">=0.1.0"
 
 [[mods]]
-id = "freven.vanilla:core"
+id = "freven.vanilla.core"
 version = "^0.1"
 
 [[mods]]
-id = "freven.vanilla:essentials"
+id = "freven.vanilla.essentials"
 version = "^0.1"
