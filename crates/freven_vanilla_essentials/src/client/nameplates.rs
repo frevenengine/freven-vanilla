@@ -24,6 +24,7 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
 
     let local_pos = players.iter().find(|p| p.is_local).map(|p| p.world_pos_m);
     let mut emitted = 0_usize;
+    let nameplate_component_id = crate::player_nameplate_component_id();
 
     for player in players {
         if player.is_local {
@@ -48,9 +49,14 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
             continue;
         };
 
-        let text = api
-            .players
-            .display_name_for(player.player_id)
+        let text = nameplate_component_id
+            .and_then(|component_id| {
+                api.players
+                    .component_bytes_for(player.player_id, component_id)
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    .map(ToOwned::to_owned)
+            })
+            .or_else(|| api.players.display_name_for(player.player_id))
             .unwrap_or_else(|| format!("player#{}", player.player_id));
 
         api.nameplates.push_nameplate(ClientNameplateDrawCmd {

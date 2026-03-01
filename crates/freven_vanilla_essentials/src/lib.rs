@@ -11,9 +11,9 @@
 
 use freven_api::{
     ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
-    ClientOutboundMessage, ClientOutboundMessageScope, MessageCodec, MessageConfig, MessageId,
-    ModContext, ModDescriptor, ModSide, Side, WorldGenError, WorldGenInit, WorldGenOutput,
-    WorldGenProvider, WorldGenRequest, WorldGenSection,
+    ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, MessageCodec,
+    MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side, WorldGenError,
+    WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest, WorldGenSection,
 };
 use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
@@ -41,12 +41,15 @@ const GRASS_KEY: &str = "freven.vanilla:grass";
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
+static VANILLA_NAMEPLATE_COMPONENT_ID: OnceLock<ComponentId> = OnceLock::new();
 pub const CLIENT_PLUGIN_ACTION_PREDICTION: &str = freven_api::engine_features::ACTION_PREDICTION;
 const ACTION_KIND_BREAK_KEY: &str = "freven.vanilla:break";
 const ACTION_KIND_PLACE_KEY: &str = "freven.vanilla:place";
 pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
 pub const MODMSG_REQUEST_KEY: &str = "freven.vanilla:echo.request";
 pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
+pub const PLAYER_NAMEPLATE_COMPONENT_KEY: &str =
+    freven_api::engine_components::PLAYER_NAMEPLATE_TEXT;
 const MODMSG_EXAMPLE_PAYLOAD: &[u8] = b"hello from vanilla client";
 const NO_ECHO_STREAM_SENT: u64 = u64::MAX;
 static CLIENT_ECHO_LAST_STREAM: AtomicU64 = AtomicU64::new(NO_ECHO_STREAM_SENT);
@@ -76,6 +79,10 @@ pub(crate) fn place_action_kind_id() -> ActionKindId {
         .get()
         .expect("vanilla action kinds must be initialized")
         .place_kind
+}
+
+pub(crate) fn player_nameplate_component_id() -> Option<ComponentId> {
+    VANILLA_NAMEPLATE_COMPONENT_ID.get().copied()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,6 +181,18 @@ pub fn register(ctx: &mut ModContext<'_>) {
             != existing
     {
         panic!("vanilla action kinds must remain deterministic across runtime builds");
+    }
+
+    let nameplate_component_id = ctx
+        .register_component(PLAYER_NAMEPLATE_COMPONENT_KEY, ComponentCodec::RawBytes)
+        .expect("vanilla essentials must register freven.engine:player_nameplate_text component");
+    if let Err(existing) = VANILLA_NAMEPLATE_COMPONENT_ID.set(nameplate_component_id)
+        && *VANILLA_NAMEPLATE_COMPONENT_ID
+            .get()
+            .expect("nameplate component id must be initialized")
+            != existing
+    {
+        panic!("vanilla component ids must remain deterministic across runtime builds");
     }
 
     if ctx.side() == Side::Server {
