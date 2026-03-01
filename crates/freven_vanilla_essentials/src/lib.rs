@@ -37,7 +37,7 @@ const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
-pub const CLIENT_PLUGIN_BLOCK_INTERACTION: &str = "freven.vanilla:block_interaction";
+pub const CLIENT_PLUGIN_ACTION_PREDICTION: &str = "freven.client:action_prediction";
 const ACTION_KIND_BREAK_KEY: &str = "freven.vanilla:break";
 const ACTION_KIND_PLACE_KEY: &str = "freven.vanilla:place";
 
@@ -156,7 +156,7 @@ pub fn register(ctx: &mut ModContext<'_>) {
 }
 
 fn register_client_plugins(installer: &mut dyn freven_api::ClientAppInstaller) {
-    installer.install_plugin(CLIENT_PLUGIN_BLOCK_INTERACTION);
+    installer.install_plugin(CLIENT_PLUGIN_ACTION_PREDICTION);
 }
 
 fn log_start_common(_api: &mut freven_api::CommonApi<'_>) {
