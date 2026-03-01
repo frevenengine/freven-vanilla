@@ -10,12 +10,15 @@
 //! - keep output in SDK worldgen section format
 
 use freven_api::{
-    ActionKindId, ModContext, ModDescriptor, ModSide, Side, WorldGenError, WorldGenInit,
-    WorldGenOutput, WorldGenProvider, WorldGenRequest, WorldGenSection,
+    ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
+    ClientOutboundMessage, ClientOutboundMessageScope, MessageCodec, MessageConfig, MessageId,
+    ModContext, ModDescriptor, ModSide, Side, WorldGenError, WorldGenInit, WorldGenOutput,
+    WorldGenProvider, WorldGenRequest, WorldGenSection,
 };
 use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 mod actions;
 mod character_controller;
@@ -37,9 +40,23 @@ const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
+static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
 pub const CLIENT_PLUGIN_ACTION_PREDICTION: &str = "freven.client:action_prediction";
 const ACTION_KIND_BREAK_KEY: &str = "freven.vanilla:break";
 const ACTION_KIND_PLACE_KEY: &str = "freven.vanilla:place";
+pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
+pub const MODMSG_REQUEST_KEY: &str = "freven.vanilla:echo.request";
+pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
+const MODMSG_EXAMPLE_PAYLOAD: &[u8] = b"hello from vanilla client";
+const NO_ECHO_STREAM_SENT: u64 = u64::MAX;
+static CLIENT_ECHO_LAST_STREAM: AtomicU64 = AtomicU64::new(NO_ECHO_STREAM_SENT);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct VanillaEchoIds {
+    channel_id: ChannelId,
+    request_id: MessageId,
+    response_id: MessageId,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VanillaActionKinds {
@@ -70,6 +87,47 @@ struct FlatBlockIds {
 
 pub fn register(ctx: &mut ModContext<'_>) {
     ctx.on_start_common(log_start_common);
+
+    let channel_id = ctx
+        .register_channel(
+            MODMSG_CHANNEL_ECHO_KEY,
+            ChannelConfig {
+                reliability: ChannelReliability::Reliable,
+                ordering: ChannelOrdering::Ordered,
+                direction: ChannelDirection::Bidirectional,
+                budget: None,
+            },
+        )
+        .expect("vanilla essentials must register freven.vanilla:mod.echo channel");
+    let request_id = ctx
+        .register_message_type(
+            MODMSG_REQUEST_KEY,
+            MessageConfig {
+                codec: MessageCodec::RawBytes,
+            },
+        )
+        .expect("vanilla essentials must register freven.vanilla:echo.request message");
+    let response_id = ctx
+        .register_message_type(
+            MODMSG_RESPONSE_KEY,
+            MessageConfig {
+                codec: MessageCodec::RawBytes,
+            },
+        )
+        .expect("vanilla essentials must register freven.vanilla:echo.response message");
+    let echo_ids = VanillaEchoIds {
+        channel_id,
+        request_id,
+        response_id,
+    };
+    if let Err(existing) = VANILLA_ECHO_IDS.set(echo_ids)
+        && *VANILLA_ECHO_IDS
+            .get()
+            .expect("vanilla echo ids must be initialized")
+            != existing
+    {
+        panic!("vanilla echo ids must remain deterministic across runtime builds");
+    }
 
     let air = ctx
         .register_block(AIR_KEY, air_def())
@@ -140,12 +198,15 @@ pub fn register(ctx: &mut ModContext<'_>) {
         ctx.on_tick_client(client::block_interaction::tick_client);
         ctx.on_start_client(client::nameplates::start_client);
         ctx.on_tick_client(client::nameplates::tick_client);
+        ctx.on_start_client(modmsg_start_client);
+        ctx.on_tick_client(modmsg_tick_client);
         ctx.on_start_client(log_start_client);
         ctx.on_client_app(register_client_plugins);
     }
 
     if ctx.side() == Side::Server {
         ctx.on_start_server(log_start_server);
+        ctx.on_tick_server(modmsg_tick_server);
     }
 
     ctx.register_character_controller(
@@ -169,6 +230,76 @@ fn log_start_client(_api: &mut freven_api::ClientApi<'_>) {
 
 fn log_start_server(_api: &mut freven_api::ServerApi<'_>) {
     tracing::info!("vanilla lifecycle: start_server");
+}
+
+fn modmsg_start_client(_api: &mut freven_api::ClientApi<'_>) {
+    CLIENT_ECHO_LAST_STREAM.store(NO_ECHO_STREAM_SENT, Ordering::Relaxed);
+}
+
+#[inline]
+fn pack_stream(level_id: u32, stream_epoch: u32) -> u64 {
+    (u64::from(level_id) << 32) | u64::from(stream_epoch)
+}
+
+fn modmsg_tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
+    let api = &mut tick.client;
+    let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
+        return;
+    };
+
+    if let Some((level_id, stream_epoch)) = api.interaction.active_stream() {
+        let stream_key = pack_stream(level_id, stream_epoch);
+        if CLIENT_ECHO_LAST_STREAM.load(Ordering::Relaxed) != stream_key {
+            let send_res = api.messages.send_msg(ClientOutboundMessage {
+                scope: ClientOutboundMessageScope::ActiveLevel,
+                channel_id: ids.channel_id.0,
+                message_id: ids.request_id.0,
+                seq: None,
+                payload: MODMSG_EXAMPLE_PAYLOAD.to_vec(),
+            });
+
+            if send_res.is_ok() {
+                CLIENT_ECHO_LAST_STREAM.store(stream_key, Ordering::Relaxed);
+            }
+        }
+    }
+
+    while let Some(msg) = api.messages.poll_msg() {
+        if msg.channel_id == ids.channel_id.0
+            && msg.message_id == ids.response_id.0
+            && msg.payload == MODMSG_EXAMPLE_PAYLOAD
+        {
+            tracing::info!(
+                channel_id = msg.channel_id,
+                message_id = msg.message_id,
+                payload_bytes = msg.payload.len(),
+                "vanilla mod echo response"
+            );
+        }
+    }
+}
+
+fn modmsg_tick_server(tick: &mut freven_api::ServerTickApi<'_>) {
+    let api = &mut tick.server;
+    let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
+        return;
+    };
+
+    while let Some(msg) = api.messages.poll_msg() {
+        if msg.channel_id != ids.channel_id.0 || msg.message_id != ids.request_id.0 {
+            continue;
+        }
+        let _ = api.messages.send_to(
+            msg.player_id,
+            freven_api::ServerOutboundMessage {
+                scope: msg.scope,
+                channel_id: msg.channel_id,
+                message_id: ids.response_id.0,
+                seq: msg.seq,
+                payload: msg.payload,
+            },
+        );
+    }
 }
 
 fn flat_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
