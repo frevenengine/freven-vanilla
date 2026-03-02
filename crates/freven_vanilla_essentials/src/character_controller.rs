@@ -13,9 +13,10 @@
 use std::time::Duration;
 
 use freven_api::{
-    CharacterConfig, CharacterController, CharacterControllerInit, CharacterIntent,
-    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig, RawInput, button_bits,
+    CharacterConfig, CharacterController, CharacterControllerInit, CharacterControllerInput,
+    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig,
 };
+use freven_std::humanoid_input::{button_bits, decode_humanoid_input_v1};
 
 const HUMANOID_SPRINT_MULTIPLIER: f32 = 1.5;
 
@@ -55,26 +56,14 @@ impl CharacterController for HumanoidController {
         &self.config
     }
 
-    fn intent_from_raw(&mut self, raw: &RawInput) -> CharacterIntent {
-        CharacterIntent {
-            move_x: (raw.move_x as f32 / 127.0).clamp(-1.0, 1.0),
-            // Preserve existing convention: positive input is "forward" (negative Z at yaw=0).
-            move_z: (-(raw.move_z as f32) / 127.0).clamp(-1.0, 1.0),
-            yaw_deg: raw.yaw_deg(),
-            pitch_deg: raw.pitch_deg(),
-            jump: (raw.buttons & button_bits::JUMP) != 0,
-            crouch: (raw.buttons & button_bits::CROUCH) != 0,
-            sprint: (raw.buttons & button_bits::SPRINT) != 0,
-        }
-    }
-
     fn step(
         &mut self,
         state: &mut CharacterState,
-        intent: &CharacterIntent,
+        input: &CharacterControllerInput,
         physics: &mut dyn CharacterPhysics,
         dt: Duration,
     ) {
+        let intent = decode_intent(input);
         let half_extents = match self.config.shape {
             CharacterShape::Aabb { half_extents } => half_extents,
         };
@@ -100,7 +89,7 @@ impl CharacterController for HumanoidController {
         let mut vel = state.vel;
         let was_grounded = state.on_ground;
 
-        let (wish_world_x, wish_world_z) = wish_dir_world(intent);
+        let (wish_world_x, wish_world_z) = wish_dir_world(&intent);
 
         let ground_speed = if intent.sprint {
             self.config.max_speed_ground * HUMANOID_SPRINT_MULTIPLIER
@@ -196,7 +185,27 @@ impl CharacterController for HumanoidController {
     }
 }
 
-fn wish_dir_world(intent: &CharacterIntent) -> (f32, f32) {
+#[derive(Debug, Clone, Copy, Default)]
+struct HumanoidIntent {
+    move_x: f32,
+    move_z: f32,
+    yaw_deg: f32,
+    jump: bool,
+    sprint: bool,
+}
+
+fn decode_intent(input: &CharacterControllerInput) -> HumanoidIntent {
+    let raw = decode_humanoid_input_v1(&input.input).unwrap_or_default();
+    HumanoidIntent {
+        move_x: (raw.move_x as f32 / 127.0).clamp(-1.0, 1.0),
+        move_z: (-(raw.move_z as f32) / 127.0).clamp(-1.0, 1.0),
+        yaw_deg: input.view_yaw_deg,
+        jump: (raw.buttons & button_bits::JUMP) != 0,
+        sprint: (raw.buttons & button_bits::SPRINT) != 0,
+    }
+}
+
+fn wish_dir_world(intent: &HumanoidIntent) -> (f32, f32) {
     let mut wish_x = intent.move_x;
     let mut wish_z = intent.move_z;
     let wish_len = (wish_x * wish_x + wish_z * wish_z).sqrt();
@@ -333,14 +342,18 @@ mod tests {
             on_ground: true,
         };
 
-        let raw = RawInput::default();
-        let intent = controller.intent_from_raw(&raw);
+        let input = CharacterControllerInput {
+            input: std::sync::Arc::from([0_u8; 4].to_vec()),
+            view_yaw_deg: 0.0,
+            view_pitch_deg: 0.0,
+            timeline: Default::default(),
+        };
         let dt = Duration::from_secs_f32(1.0 / 30.0);
 
         let mut physics = FlatFloorPhysics;
 
         for _ in 0..120 {
-            controller.step(&mut state, &intent, &mut physics, dt);
+            controller.step(&mut state, &input, &mut physics, dt);
 
             assert!(
                 state.on_ground,

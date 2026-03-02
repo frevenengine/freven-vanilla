@@ -1,7 +1,8 @@
 use freven_api::{
     ClientControlDeviceState, ClientControlOutput, ClientControlProvider,
-    ClientControlProviderInit, ClientKeyCode, RawInput, button_bits,
+    ClientControlProviderInit, ClientKeyCode,
 };
+use freven_std::humanoid_input::{HumanoidInputV1, button_bits, encode_humanoid_input_v1};
 
 const OWNER: &str = "freven.vanilla.essentials:movement";
 
@@ -56,13 +57,11 @@ impl ClientControlProvider for HumanoidControlProvider {
         let (yaw_deg, pitch_deg) = device.view_angles_deg();
 
         ClientControlOutput {
-            raw: RawInput {
+            input: std::sync::Arc::from(encode_humanoid_input_v1(HumanoidInputV1 {
                 move_x,
                 move_z,
                 buttons,
-                yaw_q: quantize_deg_x100_i16(yaw_deg),
-                pitch_q: quantize_deg_x100_i16(pitch_deg),
-            },
+            })),
             view_yaw_deg: yaw_deg,
             view_pitch_deg: pitch_deg,
         }
@@ -71,11 +70,6 @@ impl ClientControlProvider for HumanoidControlProvider {
     fn reset(&mut self) {
         // No internal state yet.
     }
-}
-
-fn quantize_deg_x100_i16(deg: f32) -> i16 {
-    let q = (deg * 100.0).round();
-    q.clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
 fn digital_axis_i8(neg: bool, pos: bool) -> i8 {

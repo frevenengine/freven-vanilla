@@ -17,6 +17,7 @@ use freven_api::{
 };
 use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
 use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
+use freven_std::action_defaults::action_keys;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -43,8 +44,8 @@ static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
 static VANILLA_NAMEPLATE_COMPONENT_ID: OnceLock<ComponentId> = OnceLock::new();
 pub const CLIENT_PLUGIN_ACTION_PREDICTION: &str = freven_api::engine_features::ACTION_PREDICTION;
-const ACTION_KIND_BREAK_KEY: &str = "freven.vanilla:break";
-const ACTION_KIND_PLACE_KEY: &str = "freven.vanilla:place";
+const ACTION_KIND_BREAK_KEY: &str = action_keys::BREAK;
+const ACTION_KIND_PLACE_KEY: &str = action_keys::PLACE;
 pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
 pub const MODMSG_REQUEST_KEY: &str = "freven.vanilla:echo.request";
 pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
