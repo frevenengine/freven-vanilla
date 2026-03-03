@@ -14,6 +14,23 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+
+      - name: Enforce pinned freven-sdk dependency (no floating deps)
+        run: |
+          set -euo pipefail
+          FILE="crates/freven_vanilla_essentials/Cargo.toml"
+
+          if grep -q 'git = "https://github.com/frevenengine/freven-sdk"' "$FILE"; then
+            if ! grep -q 'tag = "v' "$FILE"; then
+              echo "ERROR: freven-sdk dependency must be pinned with tag = \"vX.Y.Z\""
+              exit 1
+            fi
+            if grep -q 'branch =' "$FILE"; then
+              echo "ERROR: branch= is forbidden for freven-sdk dependency"
+              exit 1
+            fi
+          fi
+
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Lint
