@@ -46,10 +46,13 @@ pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
         return;
     };
 
+    let Some(target_face) = client_face_to_wire(hit.face) else {
+        return;
+    };
     let at_input_seq = api.interaction.next_input_seq();
     let target = ActionTarget {
         pos: hit.block_pos,
-        face: client_face_to_wire(hit.face),
+        face: target_face,
     };
 
     match action {
@@ -106,17 +109,19 @@ pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
         }
 
         ClientMouseButton::Middle => {}
+        _ => {}
     }
 }
 
-fn client_face_to_wire(face: ClientBlockFace) -> u8 {
+fn client_face_to_wire(face: ClientBlockFace) -> Option<u8> {
     match face {
-        ClientBlockFace::NegX => 0,
-        ClientBlockFace::PosX => 1,
-        ClientBlockFace::NegY => 2,
-        ClientBlockFace::PosY => 3,
-        ClientBlockFace::NegZ => 4,
-        ClientBlockFace::PosZ => 5,
+        ClientBlockFace::NegX => Some(0),
+        ClientBlockFace::PosX => Some(1),
+        ClientBlockFace::NegY => Some(2),
+        ClientBlockFace::PosY => Some(3),
+        ClientBlockFace::NegZ => Some(4),
+        ClientBlockFace::PosZ => Some(5),
+        _ => None,
     }
 }
 
@@ -129,5 +134,6 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
         ClientBlockFace::NegY => y.checked_sub(1).map(|ny| (x, ny, z)),
         ClientBlockFace::PosZ => z.checked_add(1).map(|nz| (x, y, nz)),
         ClientBlockFace::NegZ => z.checked_sub(1).map(|nz| (x, y, nz)),
+        _ => None,
     }
 }

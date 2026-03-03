@@ -10,6 +10,7 @@
 //! - controller integrates velocity and consumes applied motion/collision flags
 //! - no controller-side sweep TOI, probe snapping, or depenetration loops
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use freven_api::{
@@ -64,8 +65,8 @@ impl CharacterController for HumanoidController {
         dt: Duration,
     ) {
         let intent = decode_intent(input);
-        let half_extents = match self.config.shape {
-            CharacterShape::Aabb { half_extents } => half_extents,
+        let Some(half_extents) = shape_half_extents(self.config.shape) else {
+            return;
         };
 
         let skin = self.config.skin_width.abs().clamp(SKIN_MIN, SKIN_MAX);
@@ -265,6 +266,20 @@ fn normalize_yaw_deg(yaw_deg: f32) -> f32 {
     (yaw_deg + 180.0).rem_euclid(360.0) - 180.0
 }
 
+fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
+    static WARNED_UNSUPPORTED_HUMANOID_SHAPE: AtomicBool = AtomicBool::new(false);
+    match shape {
+        CharacterShape::Aabb { half_extents } => Some(half_extents),
+        _ => {
+            debug_assert!(false, "unsupported CharacterShape for humanoid controller");
+            if !WARNED_UNSUPPORTED_HUMANOID_SHAPE.swap(true, Ordering::Relaxed) {
+                tracing::warn!("unsupported CharacterShape for humanoid controller; skipping step");
+            }
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,9 +343,8 @@ mod tests {
         controller.config.gravity = 0.0;
 
         let skin = controller.config.skin_width.abs().clamp(SKIN_MIN, SKIN_MAX);
-        let half_extents = match controller.config.shape {
-            CharacterShape::Aabb { half_extents } => half_extents,
-        };
+        let half_extents = shape_half_extents(controller.config.shape)
+            .expect("test humanoid controller shape must be supported");
 
         // Start exactly on floor contact with skin gap:
         // floor top at y=1.0, so center y is 1.0 + half_extents.y + skin.
