@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use crate::{break_action_kind_id, place_action_kind_id};
 use freven_api::{ClientActionRequest, ClientBlockFace, ClientMouseButton, ClientPredictedEdit};
-use freven_core::blocks::storage;
 use freven_std::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
+
+use crate::storage_ids;
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
-const PLACE_BLOCK_ID: u8 = storage::STONE;
+const PLACE_BLOCK_ID: u8 = storage_ids::STONE_U8;
 
 pub fn start_client(api: &mut freven_api::ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
@@ -61,7 +62,7 @@ pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
             let Some(current) = api.camera.block_id_at(hit.block_pos) else {
                 return;
             };
-            if storage::is_air(current) {
+            if storage_ids::is_air(current) {
                 return;
             }
 
@@ -73,7 +74,7 @@ pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
                 at_input_seq,
                 predicted: vec![ClientPredictedEdit {
                     pos: hit.block_pos,
-                    predicted_block_id: storage::AIR,
+                    predicted_block_id: storage_ids::AIR_U8,
                 }],
             };
 
@@ -89,7 +90,7 @@ pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
             let Some(current) = api.camera.block_id_at(place_pos) else {
                 return;
             };
-            if !storage::is_air(current) {
+            if !storage_ids::is_air(current) {
                 return;
             }
 

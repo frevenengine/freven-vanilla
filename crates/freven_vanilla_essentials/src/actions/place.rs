@@ -1,8 +1,9 @@
 //! Handler for vanilla `freven:place` actions.
 
 use freven_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
-use freven_core::blocks::storage;
 use freven_std::action_payloads::decode_place_payload_v1;
+
+use crate::storage_ids;
 
 const MAX_ACTION_REACH_M: f32 = 5.0;
 const MAX_COORD_ABS: i32 = 2_000_000;
@@ -20,7 +21,7 @@ impl ActionHandler for PlaceActionHandler {
             return ActionOutcome::Rejected;
         }
 
-        if !storage::is_place_allowed_v0(decoded.block_id) {
+        if !storage_ids::is_place_allowed_v0(decoded.block_id) {
             return ActionOutcome::Rejected;
         }
 
@@ -54,7 +55,7 @@ impl ActionHandler for PlaceActionHandler {
         );
         let target_cur = world_edit.block_world(target_pos.0, target_pos.1, target_pos.2);
 
-        if !world_edit.is_solid_block_id(hit_cur) || !storage::is_air(target_cur) {
+        if !world_edit.is_solid_block_id(hit_cur) || storage_ids::is_solid(target_cur) {
             return ActionOutcome::Rejected;
         }
 
@@ -62,7 +63,7 @@ impl ActionHandler for PlaceActionHandler {
             target_pos.0,
             target_pos.1,
             target_pos.2,
-            storage::AIR,
+            storage_ids::AIR_U8,
             decoded.block_id,
         ) {
             freven_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,

@@ -9,14 +9,14 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
+use freven_api::blocks::{BlockDef, RenderLayer};
+use freven_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use freven_api::{
     ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
     ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, MessageCodec,
     MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side, WorldGenError,
     WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest, WorldGenSection,
 };
-use freven_core::blocks::{BlockDef, RenderLayer, storage::AIR};
-use freven_core::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use freven_std::action_defaults::action_keys;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,6 +24,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 mod actions;
 mod character_controller;
 mod client;
+mod storage_ids;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
 
@@ -34,7 +35,7 @@ pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     register,
 };
 
-const AIR_KEY: &str = "freven.core:air";
+const AIR_KEY: &str = "freven.engine:air";
 const STONE_KEY: &str = "freven.vanilla:stone";
 const DIRT_KEY: &str = "freven.vanilla:dirt";
 const GRASS_KEY: &str = "freven.vanilla:grass";
@@ -139,7 +140,7 @@ pub fn register(ctx: &mut ModContext<'_>) {
 
     let air = ctx
         .register_block(AIR_KEY, air_def())
-        .expect("vanilla essentials must register freven.core:air block");
+        .expect("vanilla essentials must register freven.engine:air block");
     let stone = ctx
         .register_block(STONE_KEY, stone_def())
         .expect("vanilla essentials must register freven.vanilla:stone block");
@@ -150,8 +151,8 @@ pub fn register(ctx: &mut ModContext<'_>) {
         .register_block(GRASS_KEY, grass_def())
         .expect("vanilla essentials must register freven.vanilla:grass block");
 
-    if air.0 != AIR {
-        panic!("vanilla essentials requires freven.core:air to be id 0");
+    if air.0 != storage_ids::AIR_U8 {
+        panic!("vanilla requires AIR (block id 0)");
     }
 
     let resolved = FlatBlockIds {
@@ -345,7 +346,7 @@ impl FlatWorldGen {
         let ids = FLAT_BLOCKS
             .get()
             .expect("vanilla essentials block ids must be initialized before worldgen");
-        let mut blocks = vec![AIR; CHUNK_SECTION_VOLUME];
+        let mut blocks = vec![storage_ids::AIR_U8; CHUNK_SECTION_VOLUME];
         fill_layer(&mut blocks, 0, ids.stone);
         fill_layer(&mut blocks, 1, ids.stone);
         fill_layer(&mut blocks, 2, ids.stone);
