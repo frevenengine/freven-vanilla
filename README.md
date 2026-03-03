@@ -1,6 +1,6 @@
 # Freven Vanilla (Reference Experience)
 
-Freven Vanilla is the reference experience and depends on `freven-sdk` via pinned git tags.
+Freven Vanilla is the reference experience and depends on [`freven-sdk`](https://github.com/frevenengine/freven-sdk) via pinned git tags.
 
 It contains:
 - `crates/freven_vanilla_essentials`
