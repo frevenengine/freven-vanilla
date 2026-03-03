@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/freven_vanilla_essentials"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "LicenseRef-FRSL-1.0"
+repository = "https://github.com/frevenengine/freven-vanilla"
+homepage = "https://github.com/frevenengine/freven-vanilla"
+documentation = "https://github.com/frevenengine/freven-vanilla/tree/main/docs"
+publish = false
+
+[workspace.dependencies]
+tracing = "0.1.44"

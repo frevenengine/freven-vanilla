@@ -1,0 +1,11 @@
+[package]
+name = "freven_vanilla_essentials"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+freven_api = { git = "https://github.com/frevenengine/freven-sdk", tag = "v0.1.0", package = "freven_api" }
+freven_std = { git = "https://github.com/frevenengine/freven-sdk", tag = "v0.1.0", package = "freven_std" }
+tracing.workspace = true
