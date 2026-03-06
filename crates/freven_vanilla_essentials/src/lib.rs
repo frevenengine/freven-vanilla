@@ -44,7 +44,6 @@ static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
 static VANILLA_NAMEPLATE_COMPONENT_ID: OnceLock<ComponentId> = OnceLock::new();
-pub const CLIENT_PLUGIN_ACTION_PREDICTION: &str = freven_api::engine_features::ACTION_PREDICTION;
 const ACTION_KIND_BREAK_KEY: &str = action_keys::BREAK;
 const ACTION_KIND_PLACE_KEY: &str = action_keys::PLACE;
 pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
@@ -222,7 +221,6 @@ pub fn register(ctx: &mut ModContext<'_>) {
         ctx.on_start_client(modmsg_start_client);
         ctx.on_tick_client(modmsg_tick_client);
         ctx.on_start_client(log_start_client);
-        ctx.on_client_app(register_client_plugins);
     }
 
     if ctx.side() == Side::Server {
@@ -235,10 +233,6 @@ pub fn register(ctx: &mut ModContext<'_>) {
         character_controller::humanoid_factory,
     )
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
-}
-
-fn register_client_plugins(installer: &mut dyn freven_api::ClientAppInstaller) {
-    installer.install_plugin(CLIENT_PLUGIN_ACTION_PREDICTION);
 }
 
 fn log_start_common(_api: &mut freven_api::CommonApi<'_>) {
