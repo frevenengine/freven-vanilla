@@ -3,6 +3,11 @@ id = "freven.vanilla"
 version = "0.1.0"
 title = "Vanilla"
 
+[defaults]
+worldgen = "freven.vanilla:flat"
+character_controller = "freven.vanilla:humanoid"
+client_control_provider = "freven.vanilla:humanoid_controls"
+
 [content]
 root = "content"
 manifest = "content.manifest"
