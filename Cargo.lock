@@ -11,7 +11,6 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "freven_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk?branch=main#4cf95f9e0991a70c4352fe7761a0de8f881e1d0b"
 dependencies = [
  "freven_sdk_types",
  "serde",
@@ -22,7 +21,6 @@ dependencies = [
 [[package]]
 name = "freven_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk?branch=main#4cf95f9e0991a70c4352fe7761a0de8f881e1d0b"
 dependencies = [
  "serde",
 ]
@@ -30,7 +28,6 @@ dependencies = [
 [[package]]
 name = "freven_std"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk?branch=main#4cf95f9e0991a70c4352fe7761a0de8f881e1d0b"
 dependencies = [
  "freven_api",
  "thiserror",
