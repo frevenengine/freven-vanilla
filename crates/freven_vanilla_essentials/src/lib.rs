@@ -19,7 +19,7 @@ use freven_api::{
 };
 use freven_std::action_defaults::action_keys;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod actions;
 mod character_controller;
@@ -52,8 +52,7 @@ pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
 pub const PLAYER_NAMEPLATE_COMPONENT_KEY: &str =
     freven_api::engine_components::PLAYER_NAMEPLATE_TEXT;
 const MODMSG_EXAMPLE_PAYLOAD: &[u8] = b"hello from vanilla client";
-const NO_ECHO_STREAM_SENT: u64 = u64::MAX;
-static CLIENT_ECHO_LAST_STREAM: AtomicU64 = AtomicU64::new(NO_ECHO_STREAM_SENT);
+static CLIENT_ECHO_SENT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VanillaEchoIds {
@@ -94,8 +93,6 @@ struct FlatBlockIds {
 }
 
 pub fn register(ctx: &mut ModContext<'_>) {
-    ctx.on_start_common(log_start_common);
-
     let channel_id = ctx
         .register_channel(
             MODMSG_CHANNEL_ECHO_KEY,
@@ -219,13 +216,13 @@ pub fn register(ctx: &mut ModContext<'_>) {
         ctx.on_start_client(client::nameplates::start_client);
         ctx.on_tick_client(client::nameplates::tick_client);
         ctx.on_start_client(modmsg_start_client);
-        ctx.on_tick_client(modmsg_tick_client);
+        ctx.on_client_messages(modmsg_client_messages);
         ctx.on_start_client(log_start_client);
     }
 
     if ctx.side() == Side::Server {
         ctx.on_start_server(log_start_server);
-        ctx.on_tick_server(modmsg_tick_server);
+        ctx.on_server_messages(modmsg_server_messages);
     }
 
     ctx.register_character_controller(
@@ -233,10 +230,6 @@ pub fn register(ctx: &mut ModContext<'_>) {
         character_controller::humanoid_factory,
     )
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
-}
-
-fn log_start_common(_api: &mut freven_api::CommonApi<'_>) {
-    tracing::info!("vanilla lifecycle: start_common");
 }
 
 fn log_start_client(_api: &mut freven_api::ClientApi<'_>) {
@@ -248,38 +241,29 @@ fn log_start_server(_api: &mut freven_api::ServerApi<'_>) {
 }
 
 fn modmsg_start_client(_api: &mut freven_api::ClientApi<'_>) {
-    CLIENT_ECHO_LAST_STREAM.store(NO_ECHO_STREAM_SENT, Ordering::Relaxed);
+    CLIENT_ECHO_SENT.store(false, Ordering::Relaxed);
 }
 
-#[inline]
-fn pack_stream(level_id: u32, stream_epoch: u32) -> u64 {
-    (u64::from(level_id) << 32) | u64::from(stream_epoch)
-}
-
-fn modmsg_tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
-    let api = &mut tick.client;
+fn modmsg_client_messages(api: &mut freven_api::ClientMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
 
-    if let Some((level_id, stream_epoch)) = api.interaction.active_stream() {
-        let stream_key = pack_stream(level_id, stream_epoch);
-        if CLIENT_ECHO_LAST_STREAM.load(Ordering::Relaxed) != stream_key {
-            let send_res = api.messages.send_msg(ClientOutboundMessage {
-                scope: ClientOutboundMessageScope::ActiveLevel,
-                channel_id: ids.channel_id.0,
-                message_id: ids.request_id.0,
-                seq: None,
-                payload: MODMSG_EXAMPLE_PAYLOAD.to_vec(),
-            });
+    if !CLIENT_ECHO_SENT.load(Ordering::Relaxed) {
+        let send_res = api.sender.send_msg(ClientOutboundMessage {
+            scope: ClientOutboundMessageScope::ActiveLevel,
+            channel_id: ids.channel_id.0,
+            message_id: ids.request_id.0,
+            seq: None,
+            payload: MODMSG_EXAMPLE_PAYLOAD.to_vec(),
+        });
 
-            if send_res.is_ok() {
-                CLIENT_ECHO_LAST_STREAM.store(stream_key, Ordering::Relaxed);
-            }
+        if send_res.is_ok() {
+            CLIENT_ECHO_SENT.store(true, Ordering::Relaxed);
         }
     }
 
-    while let Some(msg) = api.messages.poll_msg() {
+    for msg in api.inbound {
         if msg.channel_id == ids.channel_id.0
             && msg.message_id == ids.response_id.0
             && msg.payload == MODMSG_EXAMPLE_PAYLOAD
@@ -294,24 +278,23 @@ fn modmsg_tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
     }
 }
 
-fn modmsg_tick_server(tick: &mut freven_api::ServerTickApi<'_>) {
-    let api = &mut tick.server;
+fn modmsg_server_messages(api: &mut freven_api::ServerMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
 
-    while let Some(msg) = api.messages.poll_msg() {
+    for msg in api.inbound {
         if msg.channel_id != ids.channel_id.0 || msg.message_id != ids.request_id.0 {
             continue;
         }
-        let _ = api.messages.send_to(
+        let _ = api.sender.send_to(
             msg.player_id,
             freven_api::ServerOutboundMessage {
                 scope: msg.scope,
                 channel_id: msg.channel_id,
                 message_id: ids.response_id.0,
                 seq: msg.seq,
-                payload: msg.payload,
+                payload: msg.payload.clone(),
             },
         );
     }
