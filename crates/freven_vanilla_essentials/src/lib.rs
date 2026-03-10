@@ -9,9 +9,9 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
-use freven_api::blocks::{BlockDef, RenderLayer};
-use freven_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
-use freven_api::{
+use freven_mod_api::blocks::{BlockDef, RenderLayer};
+use freven_mod_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
+use freven_mod_api::{
     ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
     ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, LogLevel,
     MessageCodec, MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side,
@@ -51,7 +51,7 @@ pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
 pub const MODMSG_REQUEST_KEY: &str = "freven.vanilla:echo.request";
 pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
 pub const PLAYER_NAMEPLATE_COMPONENT_KEY: &str =
-    freven_api::engine_components::PLAYER_NAMEPLATE_TEXT;
+    freven_mod_api::engine_components::PLAYER_NAMEPLATE_TEXT;
 const MODMSG_EXAMPLE_PAYLOAD: &[u8] = b"hello from vanilla client";
 static CLIENT_ECHO_SENT: AtomicBool = AtomicBool::new(false);
 
@@ -233,19 +233,19 @@ pub fn register(ctx: &mut ModContext<'_>) {
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
 }
 
-fn log_start_client(_api: &mut freven_api::ClientApi<'_>) {
-    freven_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
+fn log_start_client(_api: &mut freven_mod_api::ClientApi<'_>) {
+    freven_mod_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
-fn log_start_server(_api: &mut freven_api::ServerApi<'_>) {
-    freven_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
+fn log_start_server(_api: &mut freven_mod_api::ServerApi<'_>) {
+    freven_mod_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
-fn modmsg_start_client(_api: &mut freven_api::ClientApi<'_>) {
+fn modmsg_start_client(_api: &mut freven_mod_api::ClientApi<'_>) {
     CLIENT_ECHO_SENT.store(false, Ordering::Relaxed);
 }
 
-fn modmsg_client_messages(api: &mut freven_api::ClientMessagesApi<'_>) {
+fn modmsg_client_messages(api: &mut freven_mod_api::ClientMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
@@ -282,7 +282,7 @@ fn modmsg_client_messages(api: &mut freven_api::ClientMessagesApi<'_>) {
     }
 }
 
-fn modmsg_server_messages(api: &mut freven_api::ServerMessagesApi<'_>) {
+fn modmsg_server_messages(api: &mut freven_mod_api::ServerMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
@@ -293,7 +293,7 @@ fn modmsg_server_messages(api: &mut freven_api::ServerMessagesApi<'_>) {
         }
         let _ = api.sender.send_to(
             msg.player_id,
-            freven_api::ServerOutboundMessage {
+            freven_mod_api::ServerOutboundMessage {
                 scope: msg.scope,
                 channel_id: msg.channel_id,
                 message_id: ids.response_id.0,

@@ -12,7 +12,7 @@ documentation = "https://github.com/frevenengine/freven-vanilla/tree/main/docs"
 publish = false
 
 [workspace.dependencies]
-freven_api = { git = "https://github.com/frevenengine/freven-sdk", branch = "main", package = "freven_api" }
+freven_mod_api = { git = "https://github.com/frevenengine/freven-sdk", branch = "main", package = "freven_mod_api" }
 freven_std = { git = "https://github.com/frevenengine/freven-sdk", branch = "main", package = "freven_std" }
 
 tracing = "0.1.44"

@@ -1,6 +1,6 @@
 //! Handler for vanilla `freven:place` actions.
 
-use freven_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
+use freven_mod_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
 use freven_std::action_payloads::decode_place_payload_v1;
 
 use crate::storage_ids;
@@ -66,7 +66,7 @@ impl ActionHandler for PlaceActionHandler {
             storage_ids::AIR_U8,
             decoded.block_id,
         ) {
-            freven_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
+            freven_mod_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }
