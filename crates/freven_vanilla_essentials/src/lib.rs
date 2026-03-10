@@ -13,9 +13,10 @@ use freven_api::blocks::{BlockDef, RenderLayer};
 use freven_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
 use freven_api::{
     ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
-    ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, MessageCodec,
-    MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side, WorldGenError,
-    WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest, WorldGenSection,
+    ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, LogLevel,
+    MessageCodec, MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side,
+    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
+    WorldGenSection,
 };
 use freven_std::action_defaults::action_keys;
 use std::sync::OnceLock;
@@ -233,11 +234,11 @@ pub fn register(ctx: &mut ModContext<'_>) {
 }
 
 fn log_start_client(_api: &mut freven_api::ClientApi<'_>) {
-    tracing::info!("vanilla lifecycle: start_client");
+    freven_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
 fn log_start_server(_api: &mut freven_api::ServerApi<'_>) {
-    tracing::info!("vanilla lifecycle: start_server");
+    freven_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
 fn modmsg_start_client(_api: &mut freven_api::ClientApi<'_>) {
@@ -268,11 +269,14 @@ fn modmsg_client_messages(api: &mut freven_api::ClientMessagesApi<'_>) {
             && msg.message_id == ids.response_id.0
             && msg.payload == MODMSG_EXAMPLE_PAYLOAD
         {
-            tracing::info!(
-                channel_id = msg.channel_id,
-                message_id = msg.message_id,
-                payload_bytes = msg.payload.len(),
-                "vanilla mod echo response"
+            api.log(
+                LogLevel::Info,
+                format!(
+                    "vanilla mod echo response channel_id={} message_id={} payload_bytes={}",
+                    msg.channel_id,
+                    msg.message_id,
+                    msg.payload.len()
+                ),
             );
         }
     }
