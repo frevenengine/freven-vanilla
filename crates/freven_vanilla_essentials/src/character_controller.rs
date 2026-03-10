@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use freven_api::{
     CharacterConfig, CharacterController, CharacterControllerInit, CharacterControllerInput,
-    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig,
+    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig, LogLevel,
 };
 use freven_std::humanoid_input::{button_bits, decode_humanoid_input_v1};
 
@@ -273,7 +273,10 @@ fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
         _ => {
             debug_assert!(false, "unsupported CharacterShape for humanoid controller");
             if !WARNED_UNSUPPORTED_HUMANOID_SHAPE.swap(true, Ordering::Relaxed) {
-                tracing::warn!("unsupported CharacterShape for humanoid controller; skipping step");
+                freven_api::emit_log(
+                    LogLevel::Warn,
+                    "unsupported CharacterShape for humanoid controller; skipping step",
+                );
             }
             None
         }
