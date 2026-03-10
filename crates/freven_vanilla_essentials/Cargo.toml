@@ -6,6 +6,6 @@ license.workspace = true
 publish = false
 
 [dependencies]
-freven_api.workspace = true
+freven_mod_api.workspace = true
 freven_std.workspace = true
 tracing.workspace = true

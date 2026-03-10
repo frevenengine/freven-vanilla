@@ -1,11 +1,11 @@
-use freven_api::{ClientNameplateDrawCmd, ClientTickApi};
+use freven_mod_api::{ClientNameplateDrawCmd, ClientTickApi};
 
 const ENABLED: bool = true;
 const WORLD_Y_OFFSET_M: f32 = 1.4;
 const MAX_DISTANCE_M: f32 = 48.0;
 const MAX_VISIBLE: usize = 64;
 
-pub fn start_client(api: &mut freven_api::ClientApi<'_>) {
+pub fn start_client(api: &mut freven_mod_api::ClientApi<'_>) {
     api.nameplates.clear_nameplates();
 }
 

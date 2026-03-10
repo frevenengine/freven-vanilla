@@ -3,7 +3,7 @@
 //! Responsibilities:
 //! - interpret raw button/axis input into semantic movement intent
 //! - apply deterministic walk/jump/fall kinematic stepping
-//! - query collisions only through `freven_api::CharacterPhysics`
+//! - query collisions only through `freven_mod_api::CharacterPhysics`
 //!
 //! Collision model:
 //! - terrain collision is delegated to `move_aabb_terrain` (VS-style push-out)
@@ -13,7 +13,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use freven_api::{
+use freven_mod_api::{
     CharacterConfig, CharacterController, CharacterControllerInit, CharacterControllerInput,
     CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig, LogLevel,
 };
@@ -273,7 +273,7 @@ fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
         _ => {
             debug_assert!(false, "unsupported CharacterShape for humanoid controller");
             if !WARNED_UNSUPPORTED_HUMANOID_SHAPE.swap(true, Ordering::Relaxed) {
-                freven_api::emit_log(
+                freven_mod_api::emit_log(
                     LogLevel::Warn,
                     "unsupported CharacterShape for humanoid controller; skipping step",
                 );
@@ -286,7 +286,7 @@ fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use freven_api::{KinematicMoveResult, SweepHit};
+    use freven_mod_api::{KinematicMoveResult, SweepHit};
 
     struct FlatFloorPhysics;
 

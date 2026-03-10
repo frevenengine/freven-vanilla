@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::{break_action_kind_id, place_action_kind_id};
-use freven_api::{ClientActionRequest, ClientBlockFace, ClientMouseButton, ClientPredictedEdit};
+use freven_mod_api::{
+    ClientActionRequest, ClientBlockFace, ClientMouseButton, ClientPredictedEdit,
+};
 use freven_std::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
 
 use crate::storage_ids;
@@ -11,12 +13,12 @@ const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
 const PLACE_BLOCK_ID: u8 = storage_ids::STONE_U8;
 
-pub fn start_client(api: &mut freven_api::ClientApi<'_>) {
+pub fn start_client(api: &mut freven_mod_api::ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
 }
 
-pub fn tick_client(tick: &mut freven_api::ClientTickApi<'_>) {
+pub fn tick_client(tick: &mut freven_mod_api::ClientTickApi<'_>) {
     let api = &mut tick.client;
 
     // Consume one click per tick (owner-guarded).
