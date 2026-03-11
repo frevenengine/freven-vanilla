@@ -8,11 +8,6 @@ pub const AIR_U8: u8 = 0;
 pub const STONE_U8: u8 = 1;
 
 #[inline]
-pub fn is_air(id: u8) -> bool {
-    id == AIR_U8
-}
-
-#[inline]
 pub fn is_solid(id: u8) -> bool {
     id != AIR_U8
 }
