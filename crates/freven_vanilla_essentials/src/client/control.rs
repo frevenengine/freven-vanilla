@@ -1,4 +1,4 @@
-use freven_api::{
+use freven_mod_api::{
     ClientControlDeviceState, ClientControlOutput, ClientControlProvider,
     ClientControlProviderInit, ClientKeyCode,
 };

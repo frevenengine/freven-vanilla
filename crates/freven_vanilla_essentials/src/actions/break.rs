@@ -1,6 +1,6 @@
 //! Handler for vanilla `freven:break` actions.
 
-use freven_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
+use freven_mod_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
 use freven_std::action_payloads::decode_break_payload_v1;
 
 use crate::storage_ids::AIR_U8;
@@ -57,7 +57,7 @@ impl ActionHandler for BreakActionHandler {
             cur,
             AIR_U8,
         ) {
-            freven_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
+            freven_mod_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }
