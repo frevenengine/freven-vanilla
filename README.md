@@ -4,7 +4,7 @@ Freven Vanilla is the reference experience for Freven.
 
 It demonstrates the current public architecture honestly:
 
-- builtin / compile-time authoring through `freven_mod_api`
+- builtin / compile-time authoring through `freven_world_api`
 - the same semantic registration model used by runtime-loaded guests
 - experience-driven content and per-mod config
 - a reference gameplay surface that can be loaded by Freven boot/runtime layers
