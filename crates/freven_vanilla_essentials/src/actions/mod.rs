@@ -7,7 +7,7 @@
 //!
 //! Extension guidance:
 //! - keep validation deterministic and cheap
-//! - prefer shared payload codecs from `freven_std::action_payloads`
+//! - prefer the vanilla-owned payload codecs in `crate::action_payloads`
 //! - add one module per action kind
 
 pub mod r#break;

@@ -9,22 +9,24 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
-use freven_mod_api::blocks::{BlockDef, RenderLayer};
-use freven_mod_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
-use freven_mod_api::{
+use freven_world_api::blocks::{BlockDef, RenderLayer};
+use freven_world_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
+use freven_world_api::{
     ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
     ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, LogLevel,
     MessageCodec, MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side,
     WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
     WorldGenSection,
 };
-use freven_std::action_defaults::action_keys;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub mod action_defaults;
+pub mod action_payloads;
 mod actions;
 mod character_controller;
 mod client;
+pub mod humanoid_input;
 mod storage_ids;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
@@ -36,7 +38,7 @@ pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     register,
 };
 
-const AIR_KEY: &str = "freven.engine:air";
+pub const AIR_BLOCK_KEY: &str = "freven.vanilla:air";
 const STONE_KEY: &str = "freven.vanilla:stone";
 const DIRT_KEY: &str = "freven.vanilla:dirt";
 const GRASS_KEY: &str = "freven.vanilla:grass";
@@ -45,13 +47,12 @@ static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
 static VANILLA_NAMEPLATE_COMPONENT_ID: OnceLock<ComponentId> = OnceLock::new();
-const ACTION_KIND_BREAK_KEY: &str = action_keys::BREAK;
-const ACTION_KIND_PLACE_KEY: &str = action_keys::PLACE;
+const ACTION_KIND_BREAK_KEY: &str = action_defaults::action_keys::BREAK;
+const ACTION_KIND_PLACE_KEY: &str = action_defaults::action_keys::PLACE;
 pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
 pub const MODMSG_REQUEST_KEY: &str = "freven.vanilla:echo.request";
 pub const MODMSG_RESPONSE_KEY: &str = "freven.vanilla:echo.response";
-pub const PLAYER_NAMEPLATE_COMPONENT_KEY: &str =
-    freven_mod_api::engine_components::PLAYER_NAMEPLATE_TEXT;
+pub const PLAYER_NAMEPLATE_COMPONENT_KEY: &str = "freven.vanilla:player_nameplate_text";
 const MODMSG_EXAMPLE_PAYLOAD: &[u8] = b"hello from vanilla client";
 static CLIENT_ECHO_SENT: AtomicBool = AtomicBool::new(false);
 
@@ -136,8 +137,8 @@ pub fn register(ctx: &mut ModContext<'_>) {
     }
 
     let air = ctx
-        .register_block(AIR_KEY, air_def())
-        .expect("vanilla essentials must register freven.engine:air block");
+        .register_block(AIR_BLOCK_KEY, air_def())
+        .expect("vanilla essentials must register freven.vanilla:air block");
     let stone = ctx
         .register_block(STONE_KEY, stone_def())
         .expect("vanilla essentials must register freven.vanilla:stone block");
@@ -184,7 +185,7 @@ pub fn register(ctx: &mut ModContext<'_>) {
 
     let nameplate_component_id = ctx
         .register_component(PLAYER_NAMEPLATE_COMPONENT_KEY, ComponentCodec::RawBytes)
-        .expect("vanilla essentials must register freven.engine:player_nameplate_text component");
+        .expect("vanilla essentials must register freven.vanilla:player_nameplate_text component");
     if let Err(existing) = VANILLA_NAMEPLATE_COMPONENT_ID.set(nameplate_component_id)
         && *VANILLA_NAMEPLATE_COMPONENT_ID
             .get()
@@ -233,19 +234,19 @@ pub fn register(ctx: &mut ModContext<'_>) {
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
 }
 
-fn log_start_client(_api: &mut freven_mod_api::ClientApi<'_>) {
-    freven_mod_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
+fn log_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
+    freven_world_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
-fn log_start_server(_api: &mut freven_mod_api::ServerApi<'_>) {
-    freven_mod_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
+fn log_start_server(_api: &mut freven_world_api::ServerApi<'_>) {
+    freven_world_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
-fn modmsg_start_client(_api: &mut freven_mod_api::ClientApi<'_>) {
+fn modmsg_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
     CLIENT_ECHO_SENT.store(false, Ordering::Relaxed);
 }
 
-fn modmsg_client_messages(api: &mut freven_mod_api::ClientMessagesApi<'_>) {
+fn modmsg_client_messages(api: &mut freven_world_api::ClientMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
@@ -282,7 +283,7 @@ fn modmsg_client_messages(api: &mut freven_mod_api::ClientMessagesApi<'_>) {
     }
 }
 
-fn modmsg_server_messages(api: &mut freven_mod_api::ServerMessagesApi<'_>) {
+fn modmsg_server_messages(api: &mut freven_world_api::ServerMessagesApi<'_>) {
     let Some(ids) = VANILLA_ECHO_IDS.get().copied() else {
         return;
     };
@@ -293,7 +294,7 @@ fn modmsg_server_messages(api: &mut freven_mod_api::ServerMessagesApi<'_>) {
         }
         let _ = api.sender.send_to(
             msg.player_id,
-            freven_mod_api::ServerOutboundMessage {
+            freven_world_api::ServerOutboundMessage {
                 scope: msg.scope,
                 channel_id: msg.channel_id,
                 message_id: ids.response_id.0,
