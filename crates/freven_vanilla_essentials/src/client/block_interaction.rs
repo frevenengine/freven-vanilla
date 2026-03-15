@@ -1,20 +1,19 @@
 use std::sync::Arc;
 
+use crate::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
+use crate::storage_ids;
 use crate::{break_action_kind_id, place_action_kind_id};
-use freven_mod_api::{
+use freven_world_api::{
     ClientActionRequest, ClientActionSubmitError, ClientBlockFace, ClientMouseButton,
     ClientPredictedEdit, ClientTickApi, LogLevel,
 };
-use freven_std::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
-
-use crate::storage_ids;
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
 const PLACE_BLOCK_ID: u8 = storage_ids::STONE_U8;
 
-pub fn start_client(api: &mut freven_mod_api::ClientApi<'_>) {
+pub fn start_client(api: &mut freven_world_api::ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
 }
@@ -186,7 +185,7 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use freven_mod_api::{
+    use freven_world_api::{
         ActionKindId, ClientActionResultEvent, ClientCameraHitProvider, ClientCameraRay,
         ClientCursorHit, ClientInputProvider, ClientInteractionProvider, ClientKeyCode,
         ClientNameplateDrawCmd, ClientNameplateProvider, ClientPlayerProvider, ClientPlayerView,
@@ -284,7 +283,7 @@ mod tests {
         fn submit_action(
             &mut self,
             req: ClientActionRequest,
-        ) -> Result<u32, freven_mod_api::ClientActionSubmitError> {
+        ) -> Result<u32, freven_world_api::ClientActionSubmitError> {
             self.requests.push(req);
             Ok(self.requests.len() as u32)
         }
@@ -354,7 +353,7 @@ mod tests {
         let mut nameplates = NoopNameplates;
 
         {
-            let client = freven_mod_api::ClientApi::new(
+            let client = freven_world_api::ClientApi::new(
                 &mut services,
                 &mut input,
                 &mut camera,
@@ -400,7 +399,7 @@ mod tests {
         let mut nameplates = NoopNameplates;
 
         {
-            let client = freven_mod_api::ClientApi::new(
+            let client = freven_world_api::ClientApi::new(
                 &mut services,
                 &mut input,
                 &mut camera,

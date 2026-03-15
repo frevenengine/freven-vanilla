@@ -1,8 +1,8 @@
-use freven_mod_api::{
+use crate::humanoid_input::{HumanoidInputV1, button_bits, encode_humanoid_input_v1};
+use freven_world_api::{
     ClientControlDeviceState, ClientControlOutput, ClientControlProvider,
     ClientControlProviderInit, ClientKeyCode,
 };
-use freven_std::humanoid_input::{HumanoidInputV1, button_bits, encode_humanoid_input_v1};
 
 const OWNER: &str = "freven.vanilla.essentials:movement";
 
