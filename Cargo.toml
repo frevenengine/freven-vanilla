@@ -12,6 +12,11 @@ documentation = "https://github.com/frevenengine/freven-vanilla/tree/main/docs"
 publish = false
 
 [workspace.dependencies]
-freven_world_api = { git = "https://github.com/frevenengine/freven-sdk", branch = "main", package = "freven_world_api" }
+freven_mod_api = { path = "../freven-sdk/crates/freven_mod_api" }
+freven_world_api = { path = "../freven-sdk/crates/freven_world_api" }
 thiserror = "2.0.18"
 tracing = "0.1.44"
+
+[patch."https://github.com/frevenengine/freven-sdk"]
+freven_mod_api = { path = "../freven-sdk/crates/freven_mod_api" }
+freven_world_api = { path = "../freven-sdk/crates/freven_world_api" }
