@@ -1,9 +1,9 @@
 //! Handler for vanilla `freven:break` actions.
 
 use crate::action_payloads::decode_break_payload_v1;
-use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
-
-use crate::storage_ids::AIR_U8;
+use freven_world_api::{
+    ActionCmdView, ActionContext, ActionHandler, ActionOutcome, WorldMutation, WorldMutationResult,
+};
 
 const MAX_ACTION_REACH_M: f32 = 5.0;
 const MAX_COORD_ABS: i32 = 2_000_000;
@@ -36,28 +36,23 @@ impl ActionHandler for BreakActionHandler {
         if !within_reach(player_pos, decoded.target.pos, MAX_ACTION_REACH_M) {
             return ActionOutcome::Rejected;
         }
-
-        let Some(world_edit) = ctx.world_edit.as_mut() else {
+        let Some(world_edit) = ctx.authority.as_mut() else {
             return ActionOutcome::Rejected;
         };
 
-        let cur = world_edit.block_world(
+        let Some(cur) = world_edit.block(
             decoded.target.pos.0,
             decoded.target.pos.1,
             decoded.target.pos.2,
-        );
-        if !world_edit.is_solid_block_id(cur) {
+        ) else {
+            return ActionOutcome::Rejected;
+        };
+
+        if !world_edit.is_solid(cur) {
             return ActionOutcome::Rejected;
         }
-
-        match world_edit.try_set_block_world_if(
-            decoded.target.pos.0,
-            decoded.target.pos.1,
-            decoded.target.pos.2,
-            cur,
-            AIR_U8,
-        ) {
-            freven_world_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
+        match world_edit.try_apply(&WorldMutation::clear_block(decoded.target.pos, Some(cur))) {
+            WorldMutationResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }

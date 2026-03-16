@@ -9,14 +9,16 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
-use freven_world_api::blocks::{BlockDef, RenderLayer};
-use freven_world_api::voxel::{CHUNK_SECTION_DIM, CHUNK_SECTION_VOLUME, section_index};
+use freven_mod_api::{
+    ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
+    MessageCodec, ModSide, Side, emit_log,
+};
+use freven_world_api::blocks::{BlockDescriptor, BlockRuntimeId, RenderLayer};
+use freven_world_api::voxel::CHUNK_SECTION_DIM;
 use freven_world_api::{
-    ActionKindId, ChannelConfig, ChannelDirection, ChannelId, ChannelOrdering, ChannelReliability,
-    ClientOutboundMessage, ClientOutboundMessageScope, ComponentCodec, ComponentId, LogLevel,
-    MessageCodec, MessageConfig, MessageId, ModContext, ModDescriptor, ModSide, Side,
-    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
-    WorldGenSection,
+    ActionKindId, ChannelId, ClientOutboundMessage, ClientOutboundMessageScope, MessageConfig,
+    MessageId, ModContext, ModDescriptor, WorldGenError, WorldGenInit, WorldGenOutput,
+    WorldGenProvider, WorldGenRequest, WorldTerrainWrite,
 };
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,7 +29,6 @@ mod actions;
 mod character_controller;
 mod client;
 pub mod humanoid_input;
-mod storage_ids;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
 
@@ -38,15 +39,13 @@ pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     register,
 };
 
-pub const AIR_BLOCK_KEY: &str = "freven.vanilla:air";
-const STONE_KEY: &str = "freven.vanilla:stone";
+pub(crate) const STONE_KEY: &str = "freven.vanilla:stone";
 const DIRT_KEY: &str = "freven.vanilla:dirt";
 const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
 static VANILLA_ECHO_IDS: OnceLock<VanillaEchoIds> = OnceLock::new();
-static VANILLA_NAMEPLATE_COMPONENT_ID: OnceLock<ComponentId> = OnceLock::new();
 const ACTION_KIND_BREAK_KEY: &str = action_defaults::action_keys::BREAK;
 const ACTION_KIND_PLACE_KEY: &str = action_defaults::action_keys::PLACE;
 pub const MODMSG_CHANNEL_ECHO_KEY: &str = "freven.vanilla:mod.echo";
@@ -83,15 +82,11 @@ pub(crate) fn place_action_kind_id() -> ActionKindId {
         .place_kind
 }
 
-pub(crate) fn player_nameplate_component_id() -> Option<ComponentId> {
-    VANILLA_NAMEPLATE_COMPONENT_ID.get().copied()
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FlatBlockIds {
-    stone: u8,
-    dirt: u8,
-    grass: u8,
+    stone: BlockRuntimeId,
+    dirt: BlockRuntimeId,
+    grass: BlockRuntimeId,
 }
 
 pub fn register(ctx: &mut ModContext<'_>) {
@@ -136,33 +131,12 @@ pub fn register(ctx: &mut ModContext<'_>) {
         panic!("vanilla echo ids must remain deterministic across runtime builds");
     }
 
-    let air = ctx
-        .register_block(AIR_BLOCK_KEY, air_def())
-        .expect("vanilla essentials must register freven.vanilla:air block");
-    let stone = ctx
-        .register_block(STONE_KEY, stone_def())
+    ctx.register_block(STONE_KEY, stone_def())
         .expect("vanilla essentials must register freven.vanilla:stone block");
-    let dirt = ctx
-        .register_block(DIRT_KEY, dirt_def())
+    ctx.register_block(DIRT_KEY, dirt_def())
         .expect("vanilla essentials must register freven.vanilla:dirt block");
-    let grass = ctx
-        .register_block(GRASS_KEY, grass_def())
+    ctx.register_block(GRASS_KEY, grass_def())
         .expect("vanilla essentials must register freven.vanilla:grass block");
-
-    if air.0 != storage_ids::AIR_U8 {
-        panic!("vanilla requires AIR (block id 0)");
-    }
-
-    let resolved = FlatBlockIds {
-        stone: stone.0,
-        dirt: dirt.0,
-        grass: grass.0,
-    };
-    if let Err(existing) = FLAT_BLOCKS.set(resolved)
-        && *FLAT_BLOCKS.get().expect("flat blocks must be initialized") != existing
-    {
-        panic!("vanilla essentials block ids must remain deterministic across runtime builds");
-    }
 
     let break_kind = ctx
         .register_action_kind(ACTION_KIND_BREAK_KEY)
@@ -183,17 +157,9 @@ pub fn register(ctx: &mut ModContext<'_>) {
         panic!("vanilla action kinds must remain deterministic across runtime builds");
     }
 
-    let nameplate_component_id = ctx
+    let _ = ctx
         .register_component(PLAYER_NAMEPLATE_COMPONENT_KEY, ComponentCodec::RawBytes)
         .expect("vanilla essentials must register freven.vanilla:player_nameplate_text component");
-    if let Err(existing) = VANILLA_NAMEPLATE_COMPONENT_ID.set(nameplate_component_id)
-        && *VANILLA_NAMEPLATE_COMPONENT_ID
-            .get()
-            .expect("nameplate component id must be initialized")
-            != existing
-    {
-        panic!("vanilla component ids must remain deterministic across runtime builds");
-    }
 
     if ctx.side() == Side::Server {
         ctx.register_worldgen(FLAT_WORLDGEN_KEY, flat_factory)
@@ -215,8 +181,6 @@ pub fn register(ctx: &mut ModContext<'_>) {
 
         ctx.on_start_client(client::block_interaction::start_client);
         ctx.on_tick_client(client::block_interaction::tick_client);
-        ctx.on_start_client(client::nameplates::start_client);
-        ctx.on_tick_client(client::nameplates::tick_client);
         ctx.on_start_client(modmsg_start_client);
         ctx.on_client_messages(modmsg_client_messages);
         ctx.on_start_client(log_start_client);
@@ -235,11 +199,11 @@ pub fn register(ctx: &mut ModContext<'_>) {
 }
 
 fn log_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
-    freven_world_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
+    emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
 fn log_start_server(_api: &mut freven_world_api::ServerApi<'_>) {
-    freven_world_api::emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
+    emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
 fn modmsg_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
@@ -318,24 +282,36 @@ struct FlatWorldGen {
 
 impl FlatWorldGen {
     fn new(init: WorldGenInit) -> Self {
+        ensure_flat_block_ids(resolve_flat_block_ids(&init));
         Self {
             seed: init.seed,
             world_id: init.world_id,
         }
     }
 
-    fn build_sy0() -> Vec<u8> {
+    fn emit_flat_column(&self, request: &WorldGenRequest, output: &mut WorldGenOutput) {
         let ids = FLAT_BLOCKS
             .get()
             .expect("vanilla essentials block ids must be initialized before worldgen");
-        let mut blocks = vec![storage_ids::AIR_U8; CHUNK_SECTION_VOLUME];
-        fill_layer(&mut blocks, 0, ids.stone);
-        fill_layer(&mut blocks, 1, ids.stone);
-        fill_layer(&mut blocks, 2, ids.stone);
-        fill_layer(&mut blocks, 3, ids.dirt);
-        fill_layer(&mut blocks, 4, ids.dirt);
-        fill_layer(&mut blocks, 5, ids.grass);
-        blocks
+        let min_x = request.cx * CHUNK_SECTION_DIM as i32;
+        let min_z = request.cz * CHUNK_SECTION_DIM as i32;
+        let max_x = min_x + CHUNK_SECTION_DIM as i32;
+        let max_z = min_z + CHUNK_SECTION_DIM as i32;
+
+        let mut push_layer = |y: i32, block_id: BlockRuntimeId| {
+            output.writes.push(WorldTerrainWrite::FillBox {
+                min: (min_x, y, min_z),
+                max: (max_x, y + 1, max_z),
+                block_id,
+            });
+        };
+
+        push_layer(0, ids.stone);
+        push_layer(1, ids.stone);
+        push_layer(2, ids.stone);
+        push_layer(3, ids.dirt);
+        push_layer(4, ids.dirt);
+        push_layer(5, ids.grass);
     }
 }
 
@@ -345,61 +321,42 @@ impl WorldGenProvider for FlatWorldGen {
         request: &WorldGenRequest,
         output: &mut WorldGenOutput,
     ) -> Result<(), WorldGenError> {
-        let _ = request;
-        output.sections.clear();
-        output.sections.push(WorldGenSection {
-            sy: 0,
-            blocks: Self::build_sy0(),
-        });
+        output.writes.clear();
+        self.emit_flat_column(request, output);
         Ok(())
     }
 }
 
-fn fill_layer(blocks: &mut [u8], y: usize, block_id: u8) {
-    for z in 0..CHUNK_SECTION_DIM {
-        for x in 0..CHUNK_SECTION_DIM {
-            let idx = section_index(x, y, z);
-            blocks[idx] = block_id;
-        }
+fn stone_def() -> BlockDescriptor {
+    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x8080_80FF, 1)
+}
+
+fn dirt_def() -> BlockDescriptor {
+    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x6B4F_2AFF, 2)
+}
+
+fn grass_def() -> BlockDescriptor {
+    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x3FA3_4DFF, 3)
+}
+
+fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
+    FlatBlockIds {
+        stone: init
+            .block_id_by_key(STONE_KEY)
+            .expect("vanilla essentials worldgen requires resolved stone block id"),
+        dirt: init
+            .block_id_by_key(DIRT_KEY)
+            .expect("vanilla essentials worldgen requires resolved dirt block id"),
+        grass: init
+            .block_id_by_key(GRASS_KEY)
+            .expect("vanilla essentials worldgen requires resolved grass block id"),
     }
 }
 
-fn air_def() -> BlockDef {
-    BlockDef {
-        is_solid: false,
-        is_opaque: false,
-        render_layer: RenderLayer::Opaque,
-        debug_tint_rgba: 0x0000_0000,
-        material_id: 0,
-    }
-}
-
-fn stone_def() -> BlockDef {
-    BlockDef {
-        is_solid: true,
-        is_opaque: true,
-        render_layer: RenderLayer::Opaque,
-        debug_tint_rgba: 0x8080_80FF,
-        material_id: 1,
-    }
-}
-
-fn dirt_def() -> BlockDef {
-    BlockDef {
-        is_solid: true,
-        is_opaque: true,
-        render_layer: RenderLayer::Opaque,
-        debug_tint_rgba: 0x6B4F_2AFF,
-        material_id: 2,
-    }
-}
-
-fn grass_def() -> BlockDef {
-    BlockDef {
-        is_solid: true,
-        is_opaque: true,
-        render_layer: RenderLayer::Opaque,
-        debug_tint_rgba: 0x3FA3_4DFF,
-        material_id: 3,
+fn ensure_flat_block_ids(resolved: FlatBlockIds) {
+    if let Err(existing) = FLAT_BLOCKS.set(resolved)
+        && *FLAT_BLOCKS.get().expect("flat blocks must be initialized") != existing
+    {
+        panic!("vanilla essentials block ids must remain deterministic across runtime builds");
     }
 }
