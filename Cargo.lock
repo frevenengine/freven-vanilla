@@ -38,6 +38,7 @@ dependencies = [
 name = "freven_vanilla_essentials"
 version = "0.1.0"
 dependencies = [
+ "freven_mod_api",
  "freven_world_api",
  "thiserror",
  "tracing",
@@ -47,6 +48,7 @@ dependencies = [
 name = "freven_world_api"
 version = "0.1.0"
 dependencies = [
+ "freven_guest",
  "freven_mod_api",
  "freven_sdk_types",
  "freven_world_guest",

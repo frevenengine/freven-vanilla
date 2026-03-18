@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use crate::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
-use crate::storage_ids;
-use crate::{break_action_kind_id, place_action_kind_id};
+use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
+use freven_mod_api::LogLevel;
 use freven_world_api::{
     ClientActionRequest, ClientActionSubmitError, ClientBlockFace, ClientMouseButton,
-    ClientPredictedEdit, ClientTickApi, LogLevel,
+    ClientPredictedEdit, ClientTickApi, WorldQueryRequest, WorldQueryResponse, WorldServiceRequest,
+    WorldServiceResponse,
 };
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
-const PLACE_BLOCK_ID: u8 = storage_ids::STONE_U8;
 
 pub fn start_client(api: &mut freven_world_api::ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
@@ -78,10 +78,7 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 action_kind_id: break_action_kind_id(),
                 payload: Arc::from(payload),
                 at_input_seq,
-                predicted: vec![ClientPredictedEdit {
-                    pos: hit.block_pos,
-                    predicted_block_id: storage_ids::AIR_U8,
-                }],
+                predicted: vec![ClientPredictedEdit::clear_block(hit.block_pos)],
             };
 
             // Engine assigns action_seq and owns retransmit/prediction.
@@ -102,8 +99,24 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 );
                 return;
             };
+            let Some(place_block_id) = resolve_block_id(tick.client.services, STONE_KEY) else {
+                log_local_skip(
+                    tick,
+                    action,
+                    "place block id is not available in the client runtime",
+                );
+                return;
+            };
+            let Ok(place_wire_id) = u8::try_from(place_block_id.0) else {
+                log_local_skip(
+                    tick,
+                    action,
+                    "place block id does not fit the current vanilla action payload format",
+                );
+                return;
+            };
 
-            let payload = encode_place_payload_v1(target, PLACE_BLOCK_ID);
+            let payload = encode_place_payload_v1(target, place_wire_id);
 
             let req = ClientActionRequest {
                 action_kind_id: place_action_kind_id(),
@@ -111,7 +124,7 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 at_input_seq,
                 predicted: vec![ClientPredictedEdit {
                     pos: place_pos,
-                    predicted_block_id: PLACE_BLOCK_ID,
+                    predicted_block_id: place_block_id,
                 }],
             };
 
@@ -182,20 +195,46 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
     }
 }
 
+fn resolve_block_id(
+    services: &mut dyn freven_world_api::Services,
+    key: &str,
+) -> Option<freven_world_api::BlockRuntimeId> {
+    match services.world_service(&WorldServiceRequest::Query(
+        WorldQueryRequest::BlockIdByKey {
+            key: key.to_string(),
+        },
+    )) {
+        WorldServiceResponse::Query(WorldQueryResponse::BlockIdByKey(value)) => value,
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use freven_world_api::{
-        ActionKindId, ClientActionResultEvent, ClientCameraHitProvider, ClientCameraRay,
-        ClientCursorHit, ClientInputProvider, ClientInteractionProvider, ClientKeyCode,
-        ClientNameplateDrawCmd, ClientNameplateProvider, ClientPlayerProvider, ClientPlayerView,
-        ComponentId, Services,
+        ActionKindId, BlockRuntimeId, ClientActionResultEvent, ClientCameraHitProvider,
+        ClientCameraRay, ClientCursorHit, ClientInputProvider, ClientInteractionProvider,
+        ClientKeyCode, ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
     };
 
     #[derive(Default)]
     struct NoopServices;
 
-    impl Services for NoopServices {}
+    impl Services for NoopServices {
+        fn world_service(&mut self, request: &WorldServiceRequest) -> WorldServiceResponse {
+            match request {
+                WorldServiceRequest::Query(WorldQueryRequest::BlockIdByKey { key })
+                    if key == STONE_KEY =>
+                {
+                    WorldServiceResponse::Query(WorldQueryResponse::BlockIdByKey(Some(
+                        BlockRuntimeId(3),
+                    )))
+                }
+                _ => WorldServiceResponse::Unsupported,
+            }
+        }
+    }
 
     struct TestInput {
         left: bool,
@@ -257,11 +296,11 @@ mod tests {
             panic!("block interaction submit path must not use prediction-aware cursor hits");
         }
 
-        fn predicted_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<u8> {
+        fn predicted_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
             panic!("block interaction submit path must not query prediction-aware block ids");
         }
 
-        fn authoritative_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<u8> {
+        fn authoritative_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
             panic!("block interaction submit path must not query authoritative block ids");
         }
     }
@@ -316,15 +355,6 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
-    struct NoopNameplates;
-
-    impl ClientNameplateProvider for NoopNameplates {
-        fn clear_nameplates(&mut self) {}
-
-        fn push_nameplate(&mut self, _cmd: ClientNameplateDrawCmd) {}
-    }
-
     fn ensure_action_kinds() {
         let _ = crate::VANILLA_ACTION_KINDS.get_or_init(|| crate::VanillaActionKinds {
             break_kind: ActionKindId(1),
@@ -350,7 +380,6 @@ mod tests {
         };
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
-        let mut nameplates = NoopNameplates;
 
         {
             let client = freven_world_api::ClientApi::new(
@@ -359,7 +388,6 @@ mod tests {
                 &mut camera,
                 &mut interaction,
                 &mut players,
-                &mut nameplates,
             );
             let mut tick = ClientTickApi::new(7, std::time::Duration::from_millis(33), client);
             tick_client(&mut tick);
@@ -371,10 +399,7 @@ mod tests {
         assert_eq!(req.at_input_seq, 42);
         assert_eq!(
             req.predicted,
-            vec![ClientPredictedEdit {
-                pos: (4, 5, 6),
-                predicted_block_id: storage_ids::AIR_U8,
-            }]
+            vec![ClientPredictedEdit::clear_block((4, 5, 6))]
         );
     }
 
@@ -396,7 +421,6 @@ mod tests {
         };
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
-        let mut nameplates = NoopNameplates;
 
         {
             let client = freven_world_api::ClientApi::new(
@@ -405,7 +429,6 @@ mod tests {
                 &mut camera,
                 &mut interaction,
                 &mut players,
-                &mut nameplates,
             );
             let mut tick = ClientTickApi::new(9, std::time::Duration::from_millis(33), client);
             tick_client(&mut tick);
@@ -419,7 +442,7 @@ mod tests {
             req.predicted,
             vec![ClientPredictedEdit {
                 pos: (10, 21, 30),
-                predicted_block_id: PLACE_BLOCK_ID,
+                predicted_block_id: BlockRuntimeId(3),
             }]
         );
     }

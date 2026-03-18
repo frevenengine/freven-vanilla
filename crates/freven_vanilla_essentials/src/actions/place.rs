@@ -1,9 +1,11 @@
 //! Handler for vanilla `freven:place` actions.
 
+use crate::STONE_KEY;
 use crate::action_payloads::decode_place_payload_v1;
-use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
-
-use crate::storage_ids;
+use freven_world_api::{
+    ActionCmdView, ActionContext, ActionHandler, ActionOutcome, BlockRuntimeId, WorldMutation,
+    WorldMutationResult,
+};
 
 const MAX_ACTION_REACH_M: f32 = 5.0;
 const MAX_COORD_ABS: i32 = 2_000_000;
@@ -21,7 +23,13 @@ impl ActionHandler for PlaceActionHandler {
             return ActionOutcome::Rejected;
         }
 
-        if !storage_ids::is_place_allowed_v0(decoded.block_id) {
+        let Some(stone) = ctx.block_id_by_key(STONE_KEY) else {
+            return ActionOutcome::Rejected;
+        };
+        let Ok(stone_wire_id) = u8::try_from(stone.0) else {
+            return ActionOutcome::Rejected;
+        };
+        if decoded.block_id != stone_wire_id {
             return ActionOutcome::Rejected;
         }
 
@@ -43,30 +51,32 @@ impl ActionHandler for PlaceActionHandler {
         if !within_reach(player_pos, decoded.target.pos, MAX_ACTION_REACH_M) {
             return ActionOutcome::Rejected;
         }
-
-        let Some(world_edit) = ctx.world_edit.as_mut() else {
+        let Some(world_edit) = ctx.authority.as_mut() else {
             return ActionOutcome::Rejected;
         };
 
-        let hit_cur = world_edit.block_world(
+        let Some(hit_cur) = world_edit.block(
             decoded.target.pos.0,
             decoded.target.pos.1,
             decoded.target.pos.2,
-        );
-        let target_cur = world_edit.block_world(target_pos.0, target_pos.1, target_pos.2);
+        ) else {
+            return ActionOutcome::Rejected;
+        };
 
-        if !world_edit.is_solid_block_id(hit_cur) || storage_ids::is_solid(target_cur) {
+        let Some(target_cur) = world_edit.block(target_pos.0, target_pos.1, target_pos.2) else {
+            return ActionOutcome::Rejected;
+        };
+
+        if !world_edit.is_solid(hit_cur) || world_edit.is_solid(target_cur) {
             return ActionOutcome::Rejected;
         }
 
-        match world_edit.try_set_block_world_if(
-            target_pos.0,
-            target_pos.1,
-            target_pos.2,
-            storage_ids::AIR_U8,
-            decoded.block_id,
-        ) {
-            freven_world_api::ActionWorldEditResult::Applied { .. } => ActionOutcome::Applied,
+        match world_edit.try_apply(&WorldMutation::SetBlock {
+            pos: target_pos,
+            block_id: BlockRuntimeId(u32::from(decoded.block_id)),
+            expected_old: Some(target_cur),
+        }) {
+            WorldMutationResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }

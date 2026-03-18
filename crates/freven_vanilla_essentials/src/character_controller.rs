@@ -14,9 +14,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::humanoid_input::{button_bits, decode_humanoid_input_v1};
+use freven_mod_api::LogLevel;
 use freven_world_api::{
     CharacterConfig, CharacterController, CharacterControllerInit, CharacterControllerInput,
-    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig, LogLevel,
+    CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig,
 };
 
 const HUMANOID_SPRINT_MULTIPLIER: f32 = 1.5;
@@ -273,7 +274,7 @@ fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
         _ => {
             debug_assert!(false, "unsupported CharacterShape for humanoid controller");
             if !WARNED_UNSUPPORTED_HUMANOID_SHAPE.swap(true, Ordering::Relaxed) {
-                freven_world_api::emit_log(
+                freven_mod_api::emit_log(
                     LogLevel::Warn,
                     "unsupported CharacterShape for humanoid controller; skipping step",
                 );
