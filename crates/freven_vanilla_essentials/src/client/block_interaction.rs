@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
+use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::LogLevel;
 use freven_world_api::{
     ClientActionRequest, ClientActionSubmitError, ClientBlockFace, ClientMouseButton,
@@ -198,7 +199,7 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
 fn resolve_block_id(
     services: &mut dyn freven_world_api::Services,
     key: &str,
-) -> Option<freven_world_api::BlockRuntimeId> {
+) -> Option<BlockRuntimeId> {
     match services.world_service(&WorldServiceRequest::Query(
         WorldQueryRequest::BlockIdByKey {
             key: key.to_string(),
@@ -212,10 +213,11 @@ fn resolve_block_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use freven_block_sdk_types::BlockRuntimeId;
     use freven_world_api::{
-        ActionKindId, BlockRuntimeId, ClientActionResultEvent, ClientCameraHitProvider,
-        ClientCameraRay, ClientCursorHit, ClientInputProvider, ClientInteractionProvider,
-        ClientKeyCode, ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
+        ActionKindId, ClientActionResultEvent, ClientCameraHitProvider, ClientCameraRay,
+        ClientCursorHit, ClientInputProvider, ClientInteractionProvider, ClientKeyCode,
+        ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
     };
 
     #[derive(Default)]
