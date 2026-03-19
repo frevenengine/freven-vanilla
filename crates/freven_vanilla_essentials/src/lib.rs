@@ -293,15 +293,15 @@ impl FlatWorldGen {
         let ids = FLAT_BLOCKS
             .get()
             .expect("vanilla essentials block ids must be initialized before worldgen");
-        let min_x = request.cx * CHUNK_SECTION_DIM as i32;
-        let min_z = request.cz * CHUNK_SECTION_DIM as i32;
+        let min_x = request.cx() * CHUNK_SECTION_DIM as i32;
+        let min_z = request.cz() * CHUNK_SECTION_DIM as i32;
         let max_x = min_x + CHUNK_SECTION_DIM as i32;
         let max_z = min_z + CHUNK_SECTION_DIM as i32;
 
         let mut push_layer = |y: i32, block_id: BlockRuntimeId| {
             output.writes.push(WorldTerrainWrite::FillBox {
-                min: (min_x, y, min_z),
-                max: (max_x, y + 1, max_z),
+                min: (min_x, y, min_z).into(),
+                max: (max_x, y + 1, max_z).into(),
                 block_id,
             });
         };
