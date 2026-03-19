@@ -8,6 +8,7 @@ use freven_world_api::{
     ClientPredictedEdit, ClientTickApi, WorldQueryRequest, WorldQueryResponse, WorldServiceRequest,
     WorldServiceResponse,
 };
+use freven_block_sdk_types::BlockRuntimeId;
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
@@ -198,7 +199,7 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
 fn resolve_block_id(
     services: &mut dyn freven_world_api::Services,
     key: &str,
-) -> Option<freven_world_api::BlockRuntimeId> {
+) -> Option<BlockRuntimeId> {
     match services.world_service(&WorldServiceRequest::Query(
         WorldQueryRequest::BlockIdByKey {
             key: key.to_string(),
@@ -213,10 +214,11 @@ fn resolve_block_id(
 mod tests {
     use super::*;
     use freven_world_api::{
-        ActionKindId, BlockRuntimeId, ClientActionResultEvent, ClientCameraHitProvider,
+        ActionKindId, ClientActionResultEvent, ClientCameraHitProvider,
         ClientCameraRay, ClientCursorHit, ClientInputProvider, ClientInteractionProvider,
         ClientKeyCode, ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
     };
+    use freven_block_sdk_types::BlockRuntimeId;
 
     #[derive(Default)]
     struct NoopServices;

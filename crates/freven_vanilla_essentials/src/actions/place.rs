@@ -3,9 +3,10 @@
 use crate::STONE_KEY;
 use crate::action_payloads::decode_place_payload_v1;
 use freven_world_api::{
-    ActionCmdView, ActionContext, ActionHandler, ActionOutcome, BlockRuntimeId, WorldMutation,
+    ActionCmdView, ActionContext, ActionHandler, ActionOutcome, WorldMutation,
     WorldMutationResult,
 };
+use freven_block_sdk_types::BlockRuntimeId;
 
 const MAX_ACTION_REACH_M: f32 = 5.0;
 const MAX_COORD_ABS: i32 = 2_000_000;

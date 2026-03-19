@@ -13,8 +13,8 @@ use freven_mod_api::{
     ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
     MessageCodec, ModSide, Side, emit_log,
 };
-use freven_world_api::blocks::{BlockDescriptor, BlockRuntimeId, RenderLayer};
-use freven_world_api::voxel::CHUNK_SECTION_DIM;
+use freven_block_sdk_types::{BlockDescriptor, BlockRuntimeId, RenderLayer};
+use freven_volumetric_sdk_types::CHUNK_SECTION_DIM;
 use freven_world_api::{
     ActionKindId, ChannelId, ClientOutboundMessage, ClientOutboundMessageScope, MessageConfig,
     MessageId, ModContext, ModDescriptor, WorldGenError, WorldGenInit, WorldGenOutput,
