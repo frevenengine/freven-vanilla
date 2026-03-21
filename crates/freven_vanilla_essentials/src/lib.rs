@@ -9,7 +9,9 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
-use freven_block_sdk_types::{BlockDescriptor, BlockRuntimeId, RenderLayer};
+pub(crate) use crate::blocks::STONE_KEY;
+use crate::blocks::{DIRT_KEY, GRASS_KEY, dirt_def, grass_def, stone_def};
+use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::{
     ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
     MessageCodec, ModSide, Side, emit_log,
@@ -26,6 +28,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub mod action_defaults;
 pub mod action_payloads;
 mod actions;
+mod blocks;
 mod character_controller;
 mod client;
 pub mod humanoid_input;
@@ -38,10 +41,6 @@ pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     side: ModSide::Both,
     register,
 };
-
-pub(crate) const STONE_KEY: &str = "freven.vanilla:stone";
-const DIRT_KEY: &str = "freven.vanilla:dirt";
-const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
@@ -325,18 +324,6 @@ impl WorldGenProvider for FlatWorldGen {
         self.emit_flat_column(request, output);
         Ok(())
     }
-}
-
-fn stone_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x8080_80FF, 1)
-}
-
-fn dirt_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x6B4F_2AFF, 2)
-}
-
-fn grass_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x3FA3_4DFF, 3)
 }
 
 fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
