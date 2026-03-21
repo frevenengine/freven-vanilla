@@ -2,12 +2,15 @@ use std::sync::Arc;
 
 use crate::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
+use freven_block_api::{ClientBlockFace, ClientPredictedEdit};
+use freven_block_guest::{
+    BlockQueryRequest, BlockQueryResponse, BlockServiceRequest, BlockServiceResponse,
+};
 use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::LogLevel;
 use freven_world_api::{
-    ClientActionRequest, ClientActionSubmitError, ClientBlockFace, ClientMouseButton,
-    ClientPredictedEdit, ClientTickApi, WorldQueryRequest, WorldQueryResponse, WorldServiceRequest,
-    WorldServiceResponse,
+    ClientActionRequest, ClientActionSubmitError, ClientMouseButton, ClientTickApi,
+    WorldServiceRequest, WorldServiceResponse,
 };
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
@@ -200,12 +203,14 @@ fn resolve_block_id(
     services: &mut dyn freven_world_api::Services,
     key: &str,
 ) -> Option<BlockRuntimeId> {
-    match services.world_service(&WorldServiceRequest::Query(
-        WorldQueryRequest::BlockIdByKey {
+    match services.world_service(&WorldServiceRequest::Block(BlockServiceRequest::Query(
+        BlockQueryRequest::BlockIdByKey {
             key: key.to_string(),
         },
-    )) {
-        WorldServiceResponse::Query(WorldQueryResponse::BlockIdByKey(value)) => value,
+    ))) {
+        WorldServiceResponse::Block(BlockServiceResponse::Query(
+            BlockQueryResponse::BlockIdByKey(value),
+        )) => value,
         _ => None,
     }
 }
@@ -213,11 +218,12 @@ fn resolve_block_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use freven_block_api::{ClientCameraHitProvider, ClientCameraRay, ClientCursorHit};
     use freven_block_sdk_types::BlockRuntimeId;
+
     use freven_world_api::{
-        ActionKindId, ClientActionResultEvent, ClientCameraHitProvider, ClientCameraRay,
-        ClientCursorHit, ClientInputProvider, ClientInteractionProvider, ClientKeyCode,
-        ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
+        ActionKindId, ClientActionResultEvent, ClientInputProvider, ClientInteractionProvider,
+        ClientKeyCode, ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
     };
 
     #[derive(Default)]
@@ -226,13 +232,11 @@ mod tests {
     impl Services for NoopServices {
         fn world_service(&mut self, request: &WorldServiceRequest) -> WorldServiceResponse {
             match request {
-                WorldServiceRequest::Query(WorldQueryRequest::BlockIdByKey { key })
-                    if key == STONE_KEY =>
-                {
-                    WorldServiceResponse::Query(WorldQueryResponse::BlockIdByKey(Some(
-                        BlockRuntimeId(3),
-                    )))
-                }
+                WorldServiceRequest::Block(BlockServiceRequest::Query(
+                    BlockQueryRequest::BlockIdByKey { key },
+                )) if key == STONE_KEY => WorldServiceResponse::Block(BlockServiceResponse::Query(
+                    BlockQueryResponse::BlockIdByKey(Some(BlockRuntimeId(3))),
+                )),
                 _ => WorldServiceResponse::Unsupported,
             }
         }
