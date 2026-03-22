@@ -103,7 +103,9 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 );
                 return;
             };
-            let Some(place_block_id) = resolve_block_id(tick.client.services, STONE_KEY) else {
+            let Some(place_block_id) =
+                query_block_id_via_block_service(tick.client.services, STONE_KEY)
+            else {
                 log_local_skip(
                     tick,
                     action,
@@ -199,7 +201,12 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
     }
 }
 
-fn resolve_block_id(
+/// Resolve a standard block runtime id through the block-owned query contract.
+///
+/// `BlockQueryRequest::BlockIdByKey` is owned by `freven_block_guest`.
+/// `WorldServiceRequest::Block(...)` is only the generic runtime-service carrier
+/// used by the client runtime path.
+fn query_block_id_via_block_service(
     services: &mut dyn freven_world_api::Services,
     key: &str,
 ) -> Option<BlockRuntimeId> {
