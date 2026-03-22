@@ -16,5 +16,7 @@ freven_mod_api = { git = "https://github.com/frevenengine/freven-sdk.git", packa
 freven_world_api = { git = "https://github.com/frevenengine/freven-sdk.git", package = "freven_world_api" }
 freven_volumetric_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_block_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git" }
+freven_block_api = { git = "https://github.com/frevenengine/freven-sdk.git" }
+freven_block_guest = { git = "https://github.com/frevenengine/freven-sdk.git" }
 thiserror = "2.0.18"
 tracing = "0.1.44"
