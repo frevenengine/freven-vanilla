@@ -3,7 +3,7 @@
 //! Responsibilities:
 //! - interpret raw button/axis input into semantic movement intent
 //! - apply deterministic walk/jump/fall kinematic stepping
-//! - query collisions only through `freven_world_api::CharacterPhysics`
+//! - query collisions only through `freven_avatar_sdk_types::CharacterPhysics`
 //!
 //! Collision model:
 //! - terrain collision is delegated to `move_aabb_terrain` (VS-style push-out)
@@ -14,11 +14,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::humanoid_input::{button_bits, decode_humanoid_input_v1};
-use freven_mod_api::LogLevel;
-use freven_world_api::{
+use freven_avatar_sdk_types::{
     CharacterConfig, CharacterController, CharacterControllerInit, CharacterControllerInput,
     CharacterPhysics, CharacterShape, CharacterState, KinematicMoveConfig,
 };
+use freven_mod_api::LogLevel;
 
 const HUMANOID_SPRINT_MULTIPLIER: f32 = 1.5;
 
@@ -287,7 +287,7 @@ fn shape_half_extents(shape: CharacterShape) -> Option<[f32; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use freven_world_api::{KinematicMoveResult, SweepHit};
+    use freven_avatar_sdk_types::{KinematicMoveResult, SweepHit};
 
     struct FlatFloorPhysics;
 

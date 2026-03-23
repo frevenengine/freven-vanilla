@@ -1,5 +1,5 @@
 use crate::humanoid_input::{HumanoidInputV1, button_bits, encode_humanoid_input_v1};
-use freven_world_api::{
+use freven_avatar_sdk_types::{
     ClientControlDeviceState, ClientControlOutput, ClientControlProvider,
     ClientControlProviderInit, ClientKeyCode,
 };

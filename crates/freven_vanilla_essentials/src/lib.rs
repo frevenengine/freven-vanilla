@@ -11,6 +11,10 @@
 
 pub(crate) use crate::blocks::STONE_KEY;
 use crate::blocks::{DIRT_KEY, GRASS_KEY, dirt_def, grass_def, stone_def};
+use freven_avatar_api::{
+    AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
+    ClientApi,
+};
 use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::{
     ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
@@ -197,7 +201,7 @@ pub fn register(ctx: &mut ModContext<'_>) {
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
 }
 
-fn log_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
+fn log_start_client(_api: &mut ClientApi<'_>) {
     emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
@@ -205,7 +209,7 @@ fn log_start_server(_api: &mut freven_world_api::ServerApi<'_>) {
     emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
-fn modmsg_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
+fn modmsg_start_client(_api: &mut ClientApi<'_>) {
     CLIENT_ECHO_SENT.store(false, Ordering::Relaxed);
 }
 

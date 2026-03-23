@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::action_payloads::{ActionTarget, encode_break_payload_v1, encode_place_payload_v1};
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
+use freven_avatar_api::{ClientApi, ClientTickApi};
+use freven_avatar_sdk_types::ClientMouseButton;
 use freven_block_api::{ClientBlockFace, ClientPredictedEdit};
 use freven_block_guest::{
     BlockQueryRequest, BlockQueryResponse, BlockServiceRequest, BlockServiceResponse,
@@ -9,15 +11,14 @@ use freven_block_guest::{
 use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::LogLevel;
 use freven_world_api::{
-    ClientActionRequest, ClientActionSubmitError, ClientMouseButton, ClientTickApi,
-    WorldServiceRequest, WorldServiceResponse,
+    ClientActionRequest, ClientActionSubmitError, WorldServiceRequest, WorldServiceResponse,
 };
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const BREAK_STATUS_FINISHED: u8 = 2;
 
-pub fn start_client(api: &mut freven_world_api::ClientApi<'_>) {
+pub fn start_client(api: &mut ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
 }
@@ -225,12 +226,13 @@ fn query_block_id_via_block_service(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use freven_avatar_sdk_types::{
+        ClientInputProvider, ClientKeyCode, ClientPlayerProvider, ClientPlayerView,
+    };
     use freven_block_api::{ClientCameraHitProvider, ClientCameraRay, ClientCursorHit};
     use freven_block_sdk_types::BlockRuntimeId;
-
     use freven_world_api::{
-        ActionKindId, ClientActionResultEvent, ClientInputProvider, ClientInteractionProvider,
-        ClientKeyCode, ClientPlayerProvider, ClientPlayerView, ComponentId, Services,
+        ActionKindId, ClientActionResultEvent, ClientInteractionProvider, ComponentId,
     };
 
     #[derive(Default)]
@@ -395,7 +397,7 @@ mod tests {
         let mut players = NoopPlayers;
 
         {
-            let client = freven_world_api::ClientApi::new(
+            let client = ClientApi::new(
                 &mut services,
                 &mut input,
                 &mut camera,
@@ -436,7 +438,7 @@ mod tests {
         let mut players = NoopPlayers;
 
         {
-            let client = freven_world_api::ClientApi::new(
+            let client = ClientApi::new(
                 &mut services,
                 &mut input,
                 &mut camera,
