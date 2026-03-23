@@ -18,5 +18,7 @@ freven_volumetric_sdk_types = { git = "https://github.com/frevenengine/freven-sd
 freven_block_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_block_api = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_block_guest = { git = "https://github.com/frevenengine/freven-sdk.git" }
+freven_avatar_api = { git = "https://github.com/frevenengine/freven-sdk.git", package = "freven_avatar_api" }
+freven_avatar_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git", package = "freven_avatar_sdk_types" }
 thiserror = "2.0.18"
 tracing = "0.1.44"

@@ -6,8 +6,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
-freven_avatar_api = { path = "../../../freven-sdk/crates/freven_avatar_api" }
-freven_avatar_sdk_types = { path = "../../../freven-sdk/crates/freven_avatar_sdk_types" }
+freven_avatar_api.workspace = true
+freven_avatar_sdk_types.workspace = true
 freven_mod_api.workspace = true
 freven_world_api.workspace = true
 freven_block_sdk_types.workspace = true
