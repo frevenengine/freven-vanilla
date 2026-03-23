@@ -11,7 +11,8 @@ use freven_block_guest::{
 use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::LogLevel;
 use freven_world_api::{
-    ClientActionRequest, ClientActionSubmitError, WorldServiceRequest, WorldServiceResponse,
+    ClientActionRequest, ClientActionSubmitError, Services, WorldServiceRequest,
+    WorldServiceResponse,
 };
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
@@ -208,7 +209,7 @@ fn add_face_offset(pos: (i32, i32, i32), face: ClientBlockFace) -> Option<(i32, 
 /// `WorldServiceRequest::Block(...)` is only the generic runtime-service carrier
 /// used by the client runtime path.
 fn query_block_id_via_block_service(
-    services: &mut dyn freven_world_api::Services,
+    services: &mut dyn Services,
     key: &str,
 ) -> Option<BlockRuntimeId> {
     match services.world_service(&WorldServiceRequest::Block(BlockServiceRequest::Query(
@@ -232,7 +233,7 @@ mod tests {
     use freven_block_api::{ClientCameraHitProvider, ClientCameraRay, ClientCursorHit};
     use freven_block_sdk_types::BlockRuntimeId;
     use freven_world_api::{
-        ActionKindId, ClientActionResultEvent, ClientInteractionProvider, ComponentId,
+        ActionKindId, ClientActionResultEvent, ClientInteractionProvider, ComponentId, Services,
     };
 
     #[derive(Default)]
