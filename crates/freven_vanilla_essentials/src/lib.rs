@@ -9,12 +9,18 @@
 //! - add more providers under stable namespaced keys
 //! - keep output in SDK worldgen section format
 
+pub(crate) use crate::blocks::STONE_KEY;
+use crate::blocks::{DIRT_KEY, GRASS_KEY, dirt_def, grass_def, stone_def};
+use freven_avatar_api::{
+    AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
+    ClientApi,
+};
+use freven_block_sdk_types::BlockRuntimeId;
 use freven_mod_api::{
     ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
     MessageCodec, ModSide, Side, emit_log,
 };
-use freven_world_api::blocks::{BlockDescriptor, BlockRuntimeId, RenderLayer};
-use freven_world_api::voxel::CHUNK_SECTION_DIM;
+use freven_volumetric_sdk_types::CHUNK_SECTION_DIM;
 use freven_world_api::{
     ActionKindId, ChannelId, ClientOutboundMessage, ClientOutboundMessageScope, MessageConfig,
     MessageId, ModContext, ModDescriptor, WorldGenError, WorldGenInit, WorldGenOutput,
@@ -26,6 +32,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub mod action_defaults;
 pub mod action_payloads;
 mod actions;
+mod blocks;
 mod character_controller;
 mod client;
 pub mod humanoid_input;
@@ -38,10 +45,6 @@ pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     side: ModSide::Both,
     register,
 };
-
-pub(crate) const STONE_KEY: &str = "freven.vanilla:stone";
-const DIRT_KEY: &str = "freven.vanilla:dirt";
-const GRASS_KEY: &str = "freven.vanilla:grass";
 
 static FLAT_BLOCKS: OnceLock<FlatBlockIds> = OnceLock::new();
 static VANILLA_ACTION_KINDS: OnceLock<VanillaActionKinds> = OnceLock::new();
@@ -198,7 +201,7 @@ pub fn register(ctx: &mut ModContext<'_>) {
     .expect("vanilla essentials must register freven.vanilla:humanoid character controller");
 }
 
-fn log_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
+fn log_start_client(_api: &mut ClientApi<'_>) {
     emit_log(LogLevel::Info, "vanilla lifecycle: start_client");
 }
 
@@ -206,7 +209,7 @@ fn log_start_server(_api: &mut freven_world_api::ServerApi<'_>) {
     emit_log(LogLevel::Info, "vanilla lifecycle: start_server");
 }
 
-fn modmsg_start_client(_api: &mut freven_world_api::ClientApi<'_>) {
+fn modmsg_start_client(_api: &mut ClientApi<'_>) {
     CLIENT_ECHO_SENT.store(false, Ordering::Relaxed);
 }
 
@@ -293,15 +296,15 @@ impl FlatWorldGen {
         let ids = FLAT_BLOCKS
             .get()
             .expect("vanilla essentials block ids must be initialized before worldgen");
-        let min_x = request.cx * CHUNK_SECTION_DIM as i32;
-        let min_z = request.cz * CHUNK_SECTION_DIM as i32;
+        let min_x = request.cx() * CHUNK_SECTION_DIM as i32;
+        let min_z = request.cz() * CHUNK_SECTION_DIM as i32;
         let max_x = min_x + CHUNK_SECTION_DIM as i32;
         let max_z = min_z + CHUNK_SECTION_DIM as i32;
 
         let mut push_layer = |y: i32, block_id: BlockRuntimeId| {
             output.writes.push(WorldTerrainWrite::FillBox {
-                min: (min_x, y, min_z),
-                max: (max_x, y + 1, max_z),
+                min: (min_x, y, min_z).into(),
+                max: (max_x, y + 1, max_z).into(),
                 block_id,
             });
         };
@@ -325,18 +328,6 @@ impl WorldGenProvider for FlatWorldGen {
         self.emit_flat_column(request, output);
         Ok(())
     }
-}
-
-fn stone_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x8080_80FF, 1)
-}
-
-fn dirt_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x6B4F_2AFF, 2)
-}
-
-fn grass_def() -> BlockDescriptor {
-    BlockDescriptor::new(true, true, RenderLayer::Opaque, 0x3FA3_4DFF, 3)
 }
 
 fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
