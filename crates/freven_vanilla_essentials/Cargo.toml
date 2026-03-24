@@ -10,6 +10,7 @@ freven_avatar_api.workspace = true
 freven_avatar_sdk_types.workspace = true
 freven_mod_api.workspace = true
 freven_world_api.workspace = true
+freven_volumetric_api.workspace = true
 freven_block_sdk_types.workspace = true
 freven_block_api.workspace = true
 freven_block_guest.workspace = true

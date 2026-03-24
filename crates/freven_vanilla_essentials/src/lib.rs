@@ -20,11 +20,14 @@ use freven_mod_api::{
     ChannelConfig, ChannelDirection, ChannelOrdering, ChannelReliability, ComponentCodec, LogLevel,
     MessageCodec, ModSide, Side, emit_log,
 };
+use freven_volumetric_api::{
+    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
+    WorldTerrainWrite,
+};
 use freven_volumetric_sdk_types::CHUNK_SECTION_DIM;
 use freven_world_api::{
     ActionKindId, ChannelId, ClientOutboundMessage, ClientOutboundMessageScope, MessageConfig,
-    MessageId, ModContext, ModDescriptor, WorldGenError, WorldGenInit, WorldGenOutput,
-    WorldGenProvider, WorldGenRequest, WorldTerrainWrite,
+    MessageId, ModContext, ModDescriptor,
 };
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
