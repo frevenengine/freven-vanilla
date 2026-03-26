@@ -14,6 +14,7 @@ publish = false
 [workspace.dependencies]
 freven_mod_api = { git = "https://github.com/frevenengine/freven-sdk.git", package = "freven_mod_api" }
 freven_world_api = { git = "https://github.com/frevenengine/freven-sdk.git", package = "freven_world_api" }
+freven_volumetric_api = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_volumetric_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_block_sdk_types = { git = "https://github.com/frevenengine/freven-sdk.git" }
 freven_block_api = { git = "https://github.com/frevenengine/freven-sdk.git" }
