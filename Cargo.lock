@@ -11,7 +11,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "freven_avatar_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#3a5e509d18e8cdccc322ea29fc4ba06dfe66769f"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_avatar_sdk_types",
  "freven_block_api",
@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "freven_avatar_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#3a5e509d18e8cdccc322ea29fc4ba06dfe66769f"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_world_api",
  "freven_world_guest",
@@ -31,6 +31,7 @@ dependencies = [
 [[package]]
 name = "freven_block_api"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_block_guest",
  "freven_block_sdk_types",
@@ -39,6 +40,7 @@ dependencies = [
 [[package]]
 name = "freven_block_guest"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_block_sdk_types",
  "serde",
@@ -47,6 +49,7 @@ dependencies = [
 [[package]]
 name = "freven_block_sdk_types"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "serde",
 ]
@@ -54,6 +57,7 @@ dependencies = [
 [[package]]
 name = "freven_guest"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_sdk_types",
  "serde",
@@ -62,6 +66,7 @@ dependencies = [
 [[package]]
 name = "freven_mod_api"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_guest",
  "freven_sdk_types",
@@ -73,6 +78,7 @@ dependencies = [
 [[package]]
 name = "freven_sdk_types"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "serde",
 ]
@@ -87,6 +93,7 @@ dependencies = [
  "freven_block_guest",
  "freven_block_sdk_types",
  "freven_mod_api",
+ "freven_volumetric_api",
  "freven_volumetric_sdk_types",
  "freven_world_api",
  "thiserror",
@@ -94,8 +101,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "freven_volumetric_api"
+version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
+dependencies = [
+ "freven_block_sdk_types",
+ "freven_volumetric_sdk_types",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "freven_volumetric_sdk_types"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "serde",
 ]
@@ -103,6 +122,7 @@ dependencies = [
 [[package]]
 name = "freven_world_api"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_block_api",
  "freven_block_guest",
@@ -110,7 +130,7 @@ dependencies = [
  "freven_guest",
  "freven_mod_api",
  "freven_sdk_types",
- "freven_volumetric_sdk_types",
+ "freven_volumetric_api",
  "freven_world_guest",
  "freven_world_sdk_types",
  "serde",
@@ -121,11 +141,13 @@ dependencies = [
 [[package]]
 name = "freven_world_guest"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "freven_block_guest",
  "freven_block_sdk_types",
  "freven_guest",
  "freven_sdk_types",
+ "freven_volumetric_api",
  "freven_volumetric_sdk_types",
  "freven_world_sdk_types",
  "serde",
@@ -134,6 +156,7 @@ dependencies = [
 [[package]]
 name = "freven_world_sdk_types"
 version = "0.1.0"
+source = "git+https://github.com/frevenengine/freven-sdk.git#8367f31923e7b7d270a03cbd4d6642455da3fb03"
 dependencies = [
  "serde",
 ]
@@ -335,87 +358,3 @@ name = "winnow"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a90e88e4667264a994d34e6d1ab2d26d398dcdca8b7f52bec8668957517fc7d8"
-
-[[patch.unused]]
-name = "freven_block_runtime"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_client_engine"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_content"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_experience"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_metrics"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_net_proto"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_net_session"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_net_transport"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_net_wire"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_platform"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_replication"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_runtime"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_runtime_external"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_runtime_native"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_runtime_wasm"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_server_runner"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_sim"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_wasm_host"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_world_runtime"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_guest_sdk"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "freven_world_guest_sdk"
-version = "0.1.0"
