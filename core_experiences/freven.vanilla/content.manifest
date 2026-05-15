@@ -30,3 +30,15 @@ fallback_debug_tint_rgba = 1067666943
 key = "freven.vanilla:block/stone"
 texture = "freven.vanilla:textures/stone"
 fallback_debug_tint_rgba = 2155905279
+
+[[block_tags]]
+key = "freven:soils"
+blocks = ["freven.vanilla:dirt", "freven.vanilla:grass"]
+
+[[block_tags]]
+key = "freven:stones"
+blocks = ["freven.vanilla:stone"]
+
+[[block_tags]]
+key = "freven:terrain_solids"
+blocks = ["freven.vanilla:dirt", "freven.vanilla:grass", "freven.vanilla:stone"]
