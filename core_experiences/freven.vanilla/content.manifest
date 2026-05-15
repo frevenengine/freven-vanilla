@@ -1,3 +1,32 @@
 schema = 1
-
 entries = []
+
+[[textures]]
+key = "freven.vanilla:textures/dirt"
+path = "textures/dirt.png"
+sha256 = "5c69cd9c6dc69899dec5bbab3814de236525316f51fc4b9be1073f27664fad9b"
+
+[[textures]]
+key = "freven.vanilla:textures/grass"
+path = "textures/grass.png"
+sha256 = "dddfa60189535abfc9ce151e21f17f90e39c314d4e56156392a8b87172f82bea"
+
+[[textures]]
+key = "freven.vanilla:textures/stone"
+path = "textures/stone.png"
+sha256 = "273156b173a91e88c157daf01fd6d772250bb26819e28462546eb9b2896c7c22"
+
+[[materials]]
+key = "freven.vanilla:block/dirt"
+texture = "freven.vanilla:textures/dirt"
+fallback_debug_tint_rgba = 1800350463
+
+[[materials]]
+key = "freven.vanilla:block/grass"
+texture = "freven.vanilla:textures/grass"
+fallback_debug_tint_rgba = 1067666943
+
+[[materials]]
+key = "freven.vanilla:block/stone"
+texture = "freven.vanilla:textures/stone"
+fallback_debug_tint_rgba = 2155905279

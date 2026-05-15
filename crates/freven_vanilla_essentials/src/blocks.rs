@@ -6,15 +6,15 @@ pub(crate) const GRASS_KEY: &str = "freven.vanilla:grass";
 
 #[inline]
 pub(crate) fn stone_def() -> BlockDescriptor {
-    BlockDescriptor::solid_colored_cube(0x8080_80FF)
+    BlockDescriptor::solid_material_cube("freven.vanilla:block/stone", 0x8080_80FF)
 }
 
 #[inline]
 pub(crate) fn dirt_def() -> BlockDescriptor {
-    BlockDescriptor::solid_colored_cube(0x6B4F_2AFF)
+    BlockDescriptor::solid_material_cube("freven.vanilla:block/dirt", 0x6B4F_2AFF)
 }
 
 #[inline]
 pub(crate) fn grass_def() -> BlockDescriptor {
-    BlockDescriptor::solid_colored_cube(0x3FA3_4DFF)
+    BlockDescriptor::solid_material_cube("freven.vanilla:block/grass", 0x3FA3_4DFF)
 }
