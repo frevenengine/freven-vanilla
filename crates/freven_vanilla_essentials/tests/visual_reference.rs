@@ -17,6 +17,30 @@ const MATERIALS: &[&str] = &[
     "freven.vanilla:block/dirt",
     "freven.vanilla:block/glass",
     "freven.vanilla:block/grass",
+    "freven.vanilla:block/grass_bottom",
+    "freven.vanilla:block/grass_side",
+    "freven.vanilla:block/grass_top",
+    "freven.vanilla:block/stone",
+];
+
+const MODELS: &[&str] = &[
+    "freven.vanilla:models/block/cube_all",
+    "freven.vanilla:models/block/cube_faces",
+];
+
+const BLOCK_VISUALS: &[&str] = &[
+    "freven.vanilla:visuals/block/coarse_dirt",
+    "freven.vanilla:visuals/block/dirt",
+    "freven.vanilla:visuals/block/glass",
+    "freven.vanilla:visuals/block/grass",
+    "freven.vanilla:visuals/block/stone",
+];
+
+const BLOCK_DESCRIPTOR_MATERIALS: &[&str] = &[
+    "freven.vanilla:block/coarse_dirt",
+    "freven.vanilla:block/dirt",
+    "freven.vanilla:block/glass",
+    "freven.vanilla:block/grass",
     "freven.vanilla:block/stone",
 ];
 
@@ -104,13 +128,74 @@ render_layer = "transparent""#;
 }
 
 #[test]
+fn vanilla_blocks_have_authored_model_and_visual_bindings() {
+    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+
+    for model_key in MODELS {
+        assert!(
+            manifest.contains(&format!("key = \"{model_key}\"")),
+            "missing Vanilla model key {model_key}"
+        );
+    }
+
+    for visual_key in BLOCK_VISUALS {
+        assert!(
+            manifest.contains(&format!("key = \"{visual_key}\"")),
+            "missing Vanilla block visual key {visual_key}"
+        );
+    }
+
+    assert!(
+        manifest.contains("kind = \"cube_all\""),
+        "Vanilla should author reusable cube_all model bindings"
+    );
+    assert!(
+        manifest.contains("kind = \"cube_faces\""),
+        "Vanilla should author reusable cube_faces model bindings"
+    );
+
+    let grass_visual = r#"[[block_visuals]]
+key = "freven.vanilla:visuals/block/grass"
+target = "freven.vanilla:grass"
+model = "freven.vanilla:models/block/cube_faces"
+
+[block_visuals.materials]
+bottom = "freven.vanilla:block/grass_bottom"
+side = "freven.vanilla:block/grass_side"
+top = "freven.vanilla:block/grass_top""#;
+
+    assert!(
+        manifest.contains(grass_visual),
+        "grass should use authored per-face top/side/bottom material slots"
+    );
+
+    assert!(
+        manifest.contains("texture = \"freven.vanilla:textures/dirt\"")
+            && manifest.contains("texture = \"freven.vanilla:textures/coarse_dirt\"")
+            && manifest.contains("texture = \"freven.vanilla:textures/grass\""),
+        "grass face materials should resolve to visible top/side/bottom textures"
+    );
+}
+
+#[test]
 fn vanilla_block_descriptors_use_material_keys_not_debug_color_only_visuals() {
     let blocks = read_repo_file("crates/freven_vanilla_essentials/src/blocks.rs");
 
-    for material_key in MATERIALS {
+    for material_key in BLOCK_DESCRIPTOR_MATERIALS {
         assert!(
             blocks.contains(material_key),
-            "Vanilla block descriptor should reference material key {material_key}"
+            "Vanilla block descriptor should reference fallback material key {material_key}"
+        );
+    }
+
+    for authored_only_material_key in [
+        "freven.vanilla:block/grass_bottom",
+        "freven.vanilla:block/grass_side",
+        "freven.vanilla:block/grass_top",
+    ] {
+        assert!(
+            !blocks.contains(authored_only_material_key),
+            "per-face grass material {authored_only_material_key} should stay in authored block visuals, not Rust block descriptors"
         );
     }
 
