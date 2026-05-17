@@ -24,8 +24,8 @@ use freven_mod_api::{
     MessageCodec, ModSide, Side, emit_log,
 };
 use freven_volumetric_api::{
-    WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider, WorldGenRequest,
-    WorldTerrainWrite,
+    InitialWorldSpawnHint, WorldGenError, WorldGenInit, WorldGenOutput, WorldGenProvider,
+    WorldGenRequest, WorldTerrainWrite,
 };
 use freven_volumetric_sdk_types::CHUNK_SECTION_DIM;
 use freven_world_api::{
@@ -44,6 +44,7 @@ mod client;
 pub mod humanoid_input;
 
 const FLAT_WORLDGEN_KEY: &str = "freven.vanilla:flat";
+const VISUAL_VALIDATION_WORLDGEN_KEY: &str = "freven.vanilla:visual_validation";
 
 pub const MOD_DESCRIPTOR: ModDescriptor = ModDescriptor {
     id: "freven.vanilla.essentials",
@@ -96,6 +97,8 @@ struct FlatBlockIds {
     stone: BlockRuntimeId,
     dirt: BlockRuntimeId,
     grass: BlockRuntimeId,
+    coarse_dirt: BlockRuntimeId,
+    glass: BlockRuntimeId,
 }
 
 pub fn register(ctx: &mut ModContext<'_>) {
@@ -177,6 +180,8 @@ pub fn register(ctx: &mut ModContext<'_>) {
     if ctx.side() == Side::Server {
         ctx.register_worldgen(FLAT_WORLDGEN_KEY, flat_factory)
             .expect("vanilla essentials must register freven.vanilla:flat worldgen");
+        ctx.register_worldgen(VISUAL_VALIDATION_WORLDGEN_KEY, visual_validation_factory)
+            .expect("vanilla essentials must register freven.vanilla:visual_validation worldgen");
 
         ctx.register_action_handler(break_kind, actions::r#break::BreakActionHandler)
             .expect("vanilla essentials must register freven:break action handler");
@@ -286,6 +291,10 @@ fn flat_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
     Box::new(FlatWorldGen::new(init))
 }
 
+fn visual_validation_factory(init: WorldGenInit) -> Box<dyn WorldGenProvider> {
+    Box::new(VisualValidationWorldGen::new(init))
+}
+
 struct FlatWorldGen {
     #[allow(dead_code)]
     seed: u64,
@@ -340,6 +349,156 @@ impl WorldGenProvider for FlatWorldGen {
     }
 }
 
+struct VisualValidationWorldGen {
+    flat: FlatWorldGen,
+}
+
+impl VisualValidationWorldGen {
+    fn new(init: WorldGenInit) -> Self {
+        Self {
+            flat: FlatWorldGen::new(init),
+        }
+    }
+
+    fn emit_validation_scene(&self, request: &WorldGenRequest, output: &mut WorldGenOutput) {
+        if request.cx() != 0 || request.cz() != 0 {
+            return;
+        }
+
+        let ids = FLAT_BLOCKS
+            .get()
+            .expect("vanilla essentials block ids must be initialized before worldgen");
+
+        output.bootstrap.initial_world_spawn_hint = Some(InitialWorldSpawnHint {
+            feet_position: [16.5, 7.0, 24.5],
+        });
+
+        // Five material swatches on top of the flat terrain.
+        let swatches = [
+            (4, ids.stone),
+            (8, ids.dirt),
+            (12, ids.grass),
+            (16, ids.coarse_dirt),
+            (20, ids.glass),
+        ];
+
+        for (x, block_id) in swatches {
+            output.writes.push(WorldTerrainWrite::FillBox {
+                min: (x, 6, 6).into(),
+                max: (x + 3, 7, 9).into(),
+                block_id,
+            });
+        }
+
+        // Transparent glass wall in front of an opaque stone marker.
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (6, 6, 14).into(),
+            max: (14, 11, 15).into(),
+            block_id: ids.glass,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (9, 6, 16).into(),
+            max: (12, 10, 17).into(),
+            block_id: ids.stone,
+        });
+
+        // Greedy-mesh UV probes. These large quads catch atlas bleeding,
+        // stretching, and face-axis mistakes that small cubes can hide.
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (2, 6, 22).into(),
+            max: (14, 7, 30).into(),
+            block_id: ids.grass,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (2, 7, 30).into(),
+            max: (14, 13, 31).into(),
+            block_id: ids.stone,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (14, 7, 22).into(),
+            max: (15, 13, 30).into(),
+            block_id: ids.dirt,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (18, 7, 22).into(),
+            max: (19, 13, 30).into(),
+            block_id: ids.coarse_dirt,
+        });
+
+        // Small occlusion/shadow alcove: visible lighting contrast without
+        // making the default flat world heavy or special-casing engine lighting.
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (20, 6, 12).into(),
+            max: (28, 7, 20).into(),
+            block_id: ids.stone,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (20, 10, 12).into(),
+            max: (28, 11, 20).into(),
+            block_id: ids.stone,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (20, 7, 12).into(),
+            max: (21, 10, 20).into(),
+            block_id: ids.stone,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (27, 7, 12).into(),
+            max: (28, 10, 20).into(),
+            block_id: ids.stone,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (20, 7, 12).into(),
+            max: (28, 10, 13).into(),
+            block_id: ids.stone,
+        });
+
+        // Face-lighting reference steps expose top, side, and underside-ish
+        // visual shading differences in the simple rc10 voxel renderer.
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (25, 6, 22).into(),
+            max: (29, 7, 26).into(),
+            block_id: ids.grass,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (26, 7, 23).into(),
+            max: (29, 8, 26).into(),
+            block_id: ids.dirt,
+        });
+        output.writes.push(WorldTerrainWrite::FillBox {
+            min: (27, 8, 24).into(),
+            max: (29, 9, 26).into(),
+            block_id: ids.stone,
+        });
+
+        // Sparse single-block markers exercise SetBlock output and make material
+        // drift obvious in screenshots.
+        for (index, block_id) in [ids.stone, ids.dirt, ids.grass, ids.coarse_dirt, ids.glass]
+            .into_iter()
+            .enumerate()
+        {
+            output.writes.push(WorldTerrainWrite::SetBlock {
+                pos: (4 + index as i32 * 2, 7, 24).into(),
+                block_id,
+            });
+        }
+    }
+}
+
+impl WorldGenProvider for VisualValidationWorldGen {
+    fn generate(
+        &mut self,
+        request: &WorldGenRequest,
+        output: &mut WorldGenOutput,
+    ) -> Result<(), WorldGenError> {
+        output.writes.clear();
+        output.bootstrap.initial_world_spawn_hint = None;
+        self.flat.emit_flat_column(request, output);
+        self.emit_validation_scene(request, output);
+        Ok(())
+    }
+}
+
 fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
     FlatBlockIds {
         stone: init
@@ -351,6 +510,12 @@ fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
         grass: init
             .block_id_by_key(GRASS_KEY)
             .expect("vanilla essentials worldgen requires resolved grass block id"),
+        coarse_dirt: init
+            .block_id_by_key(COARSE_DIRT_KEY)
+            .expect("vanilla essentials worldgen requires resolved coarse dirt block id"),
+        glass: init
+            .block_id_by_key(GLASS_KEY)
+            .expect("vanilla essentials worldgen requires resolved glass block id"),
     }
 }
 
@@ -359,5 +524,110 @@ fn ensure_flat_block_ids(resolved: FlatBlockIds) {
         && *FLAT_BLOCKS.get().expect("flat blocks must be initialized") != existing
     {
         panic!("vanilla essentials block ids must remain deterministic across runtime builds");
+    }
+}
+
+#[cfg(test)]
+mod worldgen_tests {
+    use super::*;
+    use freven_volumetric_api::ColumnCoord;
+
+    fn test_init() -> WorldGenInit {
+        let mut init = WorldGenInit::new(123);
+        init.block_ids
+            .insert(STONE_KEY.to_string(), BlockRuntimeId(1));
+        init.block_ids
+            .insert(DIRT_KEY.to_string(), BlockRuntimeId(2));
+        init.block_ids
+            .insert(GRASS_KEY.to_string(), BlockRuntimeId(3));
+        init.block_ids
+            .insert(COARSE_DIRT_KEY.to_string(), BlockRuntimeId(4));
+        init.block_ids
+            .insert(GLASS_KEY.to_string(), BlockRuntimeId(5));
+        init
+    }
+
+    fn request(cx: i32, cz: i32) -> WorldGenRequest {
+        WorldGenRequest::new(123, ColumnCoord { cx, cz })
+    }
+
+    #[test]
+    fn flat_worldgen_keeps_small_default_flat_column() {
+        let mut provider = FlatWorldGen::new(test_init());
+        let mut output = WorldGenOutput::default();
+
+        provider
+            .generate(&request(0, 0), &mut output)
+            .expect("flat worldgen should generate");
+
+        assert_eq!(output.writes.len(), 6);
+        assert!(output.bootstrap.initial_world_spawn_hint.is_none());
+        assert!(
+            output
+                .writes
+                .iter()
+                .all(|write| matches!(write, WorldTerrainWrite::FillBox { .. }))
+        );
+    }
+
+    #[test]
+    fn visual_validation_worldgen_emits_curated_origin_scene() {
+        let mut provider = VisualValidationWorldGen::new(test_init());
+        let mut output = WorldGenOutput::default();
+
+        provider
+            .generate(&request(0, 0), &mut output)
+            .expect("visual validation worldgen should generate");
+
+        assert!(
+            output.bootstrap.initial_world_spawn_hint.is_some(),
+            "visual validation scene should provide a screenshot-friendly spawn hint"
+        );
+        assert!(
+            output.writes.len() > 24,
+            "visual validation scene should add curated material, transparency, UV, and lighting probes on top of flat terrain"
+        );
+        assert!(
+            output
+                .writes
+                .iter()
+                .filter(|write| matches!(write, WorldTerrainWrite::FillBox { .. }))
+                .count()
+                >= 20,
+            "visual validation scene should mostly use FillBox probes so greedy meshing is exercised"
+        );
+        assert!(
+            output.writes.iter().any(|write| matches!(
+                write,
+                WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(5)
+            )),
+            "visual validation scene should include transparent glass fill regions"
+        );
+        assert!(
+            output.writes.iter().any(|write| matches!(
+                write,
+                WorldTerrainWrite::SetBlock { block_id, .. } if *block_id == BlockRuntimeId(4)
+            )),
+            "visual validation scene should include sparse coarse dirt variant markers"
+        );
+    }
+
+    #[test]
+    fn visual_validation_worldgen_keeps_other_columns_flat() {
+        let mut provider = VisualValidationWorldGen::new(test_init());
+        let mut output = WorldGenOutput::default();
+
+        provider
+            .generate(&request(1, 0), &mut output)
+            .expect("visual validation worldgen should generate non-origin columns");
+
+        assert_eq!(output.writes.len(), 6);
+        assert!(output.bootstrap.initial_world_spawn_hint.is_none());
+        assert!(
+            output
+                .writes
+                .iter()
+                .all(|write| matches!(write, WorldTerrainWrite::FillBox { .. }))
+        );
     }
 }

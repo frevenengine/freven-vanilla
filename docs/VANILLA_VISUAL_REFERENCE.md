@@ -60,6 +60,7 @@ Not allowed as Vanilla authoring surface:
 - Bevy/wgpu handles;
 - generated cache paths;
 - engine-side special cases for Vanilla block names.
+- Vanilla-owned overrides of engine renderer shaders such as `shaders/voxel.wgsl`.
 
 ## Relationship to future block visual content
 
