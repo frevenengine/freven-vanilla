@@ -124,3 +124,13 @@ runtime save-state format.
 Future visual features can extend the scene with more authored Vanilla blocks,
 for example leaves, emissive blocks, framed glass, per-face grass, or colored
 glass, once those features are source-of-truth in the runtime/tooling stack.
+
+## Authored visual binding coverage
+
+The validation scene includes a per-face grass sample through
+`freven.vanilla:visuals/block/grass`.
+
+That visual uses the authored `cube_faces` model and binds distinct material
+slots for `top`, `side`, and `bottom`. This is intended to verify that Vanilla
+content reaches the engine runtime visual mesh table and client meshing path
+without hardcoded Vanilla block behavior.

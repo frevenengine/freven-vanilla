@@ -48,9 +48,74 @@ texture = "freven.vanilla:textures/grass"
 fallback_debug_tint_rgba = 1067666943
 
 [[materials]]
+key = "freven.vanilla:block/grass_bottom"
+texture = "freven.vanilla:textures/dirt"
+fallback_debug_tint_rgba = 1800350463
+
+[[materials]]
+key = "freven.vanilla:block/grass_side"
+texture = "freven.vanilla:textures/coarse_dirt"
+fallback_debug_tint_rgba = 2052735231
+
+[[materials]]
+key = "freven.vanilla:block/grass_top"
+texture = "freven.vanilla:textures/grass"
+fallback_debug_tint_rgba = 1067666943
+
+[[materials]]
 key = "freven.vanilla:block/stone"
 texture = "freven.vanilla:textures/stone"
 fallback_debug_tint_rgba = 2155905279
+
+[[models]]
+key = "freven.vanilla:models/block/cube_all"
+kind = "cube_all"
+
+[[models]]
+key = "freven.vanilla:models/block/cube_faces"
+kind = "cube_faces"
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/coarse_dirt"
+target = "freven.vanilla:coarse_dirt"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/coarse_dirt"
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/dirt"
+target = "freven.vanilla:dirt"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/dirt"
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/glass"
+target = "freven.vanilla:glass"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/glass"
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/grass"
+target = "freven.vanilla:grass"
+model = "freven.vanilla:models/block/cube_faces"
+
+[block_visuals.materials]
+bottom = "freven.vanilla:block/grass_bottom"
+side = "freven.vanilla:block/grass_side"
+top = "freven.vanilla:block/grass_top"
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/stone"
+target = "freven.vanilla:stone"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/stone"
 
 [[block_tags]]
 key = "freven:glass"

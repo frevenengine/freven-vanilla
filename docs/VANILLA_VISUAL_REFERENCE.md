@@ -108,3 +108,21 @@ A healthy Vanilla visual reference should satisfy these checks:
 - Texture files are valid square power-of-two PNGs for the voxel block baseline.
 - Fallback debug colors remain present and diagnosable.
 - README links to this document so modders can find the reference boundary.
+
+## Authored block visual bindings
+
+Vanilla block visuals are authored in
+`core_experiences/freven.vanilla/content.manifest` with stable `[[models]]` and
+`[[block_visuals]]` entries.
+
+The engine owns generic model/visual resolution and client meshing. Vanilla owns
+only first-party content facts:
+
+- which Vanilla block key uses which visual key;
+- which visual key uses which model key;
+- which model material slots are bound to which Vanilla material keys;
+- which material keys resolve to which Vanilla texture keys and render policy.
+
+No engine code may special-case the words `stone`, `dirt`, `grass`, or `glass`.
+The current `BlockDescriptor::solid_material_cube(...)` bridge remains as
+gameplay/fallback data, not as the authored visual happy path.

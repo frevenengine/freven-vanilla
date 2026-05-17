@@ -11,13 +11,13 @@ standalone-game authors.
 
 The v1 pack includes these Vanilla block visuals:
 
-| Block key | Material key | Texture key | Notes |
-| --- | --- | --- | --- |
-| `freven.vanilla:stone` | `freven.vanilla:block/stone` | `freven.vanilla:textures/stone` | Opaque terrain stone. |
-| `freven.vanilla:dirt` | `freven.vanilla:block/dirt` | `freven.vanilla:textures/dirt` | Opaque soil base. |
-| `freven.vanilla:grass` | `freven.vanilla:block/grass` | `freven.vanilla:textures/grass` | Opaque grass-covered soil baseline. |
-| `freven.vanilla:coarse_dirt` | `freven.vanilla:block/coarse_dirt` | `freven.vanilla:textures/coarse_dirt` | First soil-style variant. |
-| `freven.vanilla:glass` | `freven.vanilla:block/glass` | `freven.vanilla:textures/glass` | Solid collision, non-opaque visibility, transparent render layer. |
+| Block key | Visual key | Model key | Material slots | Notes |
+| --- | --- | --- | --- | --- |
+| `freven.vanilla:stone` | `freven.vanilla:visuals/block/stone` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/stone` | Opaque terrain stone. |
+| `freven.vanilla:dirt` | `freven.vanilla:visuals/block/dirt` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/dirt` | Opaque soil base. |
+| `freven.vanilla:coarse_dirt` | `freven.vanilla:visuals/block/coarse_dirt` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/coarse_dirt` | First soil-style variant. |
+| `freven.vanilla:grass` | `freven.vanilla:visuals/block/grass` | `freven.vanilla:models/block/cube_faces` | `top`, `side`, `bottom` | Per-face authored grass sample. |
+| `freven.vanilla:glass` | `freven.vanilla:visuals/block/glass` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/glass` | Solid collision, non-opaque visibility, transparent render layer. |
 
 ## Texture policy
 
@@ -47,6 +47,28 @@ Materials are declared in `content.manifest`.
 Opaque terrain materials omit `render_layer`, which preserves the default opaque
 material behavior.
 
+Vanilla keeps legacy block-level material keys such as:
+
+~~~text
+freven.vanilla:block/grass
+~~~
+
+Those keys remain available for the current `BlockDescriptor` fallback bridge and
+for compatibility with existing visual references.
+
+Authored block visuals may bind more specific material slots. The grass visual
+currently uses:
+
+~~~text
+top    -> freven.vanilla:block/grass_top    -> freven.vanilla:textures/grass
+side   -> freven.vanilla:block/grass_side   -> freven.vanilla:textures/coarse_dirt
+bottom -> freven.vanilla:block/grass_bottom -> freven.vanilla:textures/dirt
+~~~
+
+The side material intentionally reuses an existing coarse-dirt texture for the
+rc10 proof, making the per-face binding obvious without adding final grass-side
+art yet.
+
 Glass declares:
 
 ~~~toml
@@ -59,6 +81,43 @@ the word "glass", and it is not a raw renderer slot.
 The glass block descriptor also declares non-opaque transparent block visibility
 so collision/selection can remain solid while rendering uses the transparent
 material path.
+
+## Model and block visual policy
+
+Vanilla now authors reusable model keys and block visual bindings in:
+
+~~~text
+core_experiences/freven.vanilla/content.manifest
+~~~
+
+The current reusable model keys are:
+
+- `freven.vanilla:models/block/cube_all`
+- `freven.vanilla:models/block/cube_faces`
+
+The current visual keys are:
+
+- `freven.vanilla:visuals/block/stone`
+- `freven.vanilla:visuals/block/dirt`
+- `freven.vanilla:visuals/block/coarse_dirt`
+- `freven.vanilla:visuals/block/grass`
+- `freven.vanilla:visuals/block/glass`
+
+The authored visual path is now the happy path:
+
+~~~text
+Vanilla block key
+-> authored block visual key
+-> authored model key
+-> authored material slots
+-> authored materials/textures
+-> engine runtime visual mesh table
+-> client meshing/rendering
+~~~
+
+The Rust block descriptors still define collision, opacity, render-layer fallback,
+and stable material-key fallback data. They do not hardcode Vanilla model shapes
+inside the engine.
 
 ## Block tags
 
@@ -73,23 +132,16 @@ The v1 pack publishes only tags for real Vanilla blocks:
 These are semantic content tags for mods and tools. They are not runtime block
 ids and not renderer categories.
 
-## Variants and future block visual files
+## Variants and future families
 
 This pack includes one concrete soil-style variant, `freven.vanilla:coarse_dirt`.
 
-Full family expansion and canonical data-driven block visual files remain the
-long-term authoring model. The SDK schema already defines those shapes, but this
-repo should only treat them as source-of-truth once the runtime/tooling path is
-wired end-to-end for Vanilla content.
+Full family expansion remains future work for Vanilla. The current pack uses
+explicit concrete block visual bindings first so the engine/runtime/boot path is
+proven before adding generated rock, soil/grass, or colored-glass families.
 
-Until then, the material-key block descriptor bridge is the honest rc10 path:
-
-~~~text
-Vanilla block key -> stable material key -> authored material -> authored texture
-~~~
-
-When canonical block visual files become runtime source-of-truth, Vanilla should
-migrate without changing stable public block/material/texture keys.
+Future family expansion should generate the same kind of concrete model, material,
+and block visual entries without changing stable public Vanilla block keys.
 
 ## Override guidance
 
@@ -105,10 +157,13 @@ freven.vanilla:textures/grass
 The replacement should keep the same stable key, point to the new authored PNG,
 and update sha256 in that layer's `content.manifest`.
 
-A material override can replace the material key instead, for example:
+A material override can replace a material key instead, for example:
 
 ~~~text
 freven.vanilla:block/glass
+freven.vanilla:block/grass_top
+freven.vanilla:block/grass_side
+freven.vanilla:block/grass_bottom
 ~~~
 
 That is the right place to change material policy such as transparent vs cutout
@@ -118,9 +173,10 @@ once the selected product/runtime supports the desired policy.
 
 The Vanilla repo keeps regression tests for:
 
-- declared texture and material keys;
+- declared texture, material, model, and block visual keys;
 - texture file existence and PNG baseline shape;
 - transparent glass material policy;
+- grass top/side/bottom authored material slots;
 - block descriptors using material keys rather than debug-only colors;
 - README/docs links for the visual reference and content pack.
 
