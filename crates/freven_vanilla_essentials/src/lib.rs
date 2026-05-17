@@ -11,8 +11,9 @@
 
 pub(crate) use crate::blocks::STONE_KEY;
 use crate::blocks::{
-    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRANITE_KEY, GRASS_KEY, LIMESTONE_KEY, coarse_dirt_def,
-    dirt_def, glass_def, granite_def, grass_def, limestone_def, stone_def,
+    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRANITE_KEY, GRASS_KEY, LIMESTONE_KEY,
+    SOIL_GRASS_VARIANT_COUNT, SOIL_GRASS_VARIANTS, coarse_dirt_def, dirt_def, glass_def,
+    granite_def, grass_def, limestone_def, soil_grass_variant_def, stone_def,
 };
 use freven_avatar_api::{
     AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
@@ -100,6 +101,8 @@ struct FlatBlockIds {
     dirt: BlockRuntimeId,
     grass: BlockRuntimeId,
     coarse_dirt: BlockRuntimeId,
+    soil_grass: [BlockRuntimeId; SOIL_GRASS_VARIANT_COUNT],
+    soil_medium_normal: BlockRuntimeId,
     glass: BlockRuntimeId,
 }
 
@@ -157,6 +160,15 @@ pub fn register(ctx: &mut ModContext<'_>) {
         .expect("vanilla essentials must register freven.vanilla:grass block");
     ctx.register_block(COARSE_DIRT_KEY, coarse_dirt_def())
         .expect("vanilla essentials must register freven.vanilla:coarse_dirt block");
+    for variant in SOIL_GRASS_VARIANTS {
+        ctx.register_block(variant.key, soil_grass_variant_def(variant))
+            .unwrap_or_else(|err| {
+                panic!(
+                    "vanilla essentials must register soil/grass variant block {}: {err}",
+                    variant.key
+                )
+            });
+    }
     ctx.register_block(GLASS_KEY, glass_def())
         .expect("vanilla essentials must register freven.vanilla:glass block");
 
@@ -339,7 +351,7 @@ impl FlatWorldGen {
         push_layer(2, ids.stone);
         push_layer(3, ids.dirt);
         push_layer(4, ids.dirt);
-        push_layer(5, ids.grass);
+        push_layer(5, ids.soil_medium_normal);
     }
 }
 
@@ -399,6 +411,22 @@ impl VisualValidationWorldGen {
             });
         }
 
+        // TopSoil family patch: fertility rows x grass coverage columns.
+        // Bare cells are plain soil cubes; sparse/normal cells add cutout grass
+        // overlay geometry with world-sampled tint metadata.
+        for (index, block_id) in ids.soil_grass.iter().copied().enumerate() {
+            let coverage_col = i32::try_from(index % 3).expect("coverage index fits i32");
+            let fertility_row = i32::try_from(index / 3).expect("fertility index fits i32");
+            let x = 2 + coverage_col * 4;
+            let z = 10 + fertility_row;
+
+            output.writes.push(WorldTerrainWrite::FillBox {
+                min: (x, 6, z).into(),
+                max: (x + 3, 7, z + 1).into(),
+                block_id,
+            });
+        }
+
         // Transparent glass wall in front of an opaque stone marker.
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (6, 6, 14).into(),
@@ -416,7 +444,7 @@ impl VisualValidationWorldGen {
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (2, 6, 22).into(),
             max: (14, 7, 30).into(),
-            block_id: ids.grass,
+            block_id: ids.soil_medium_normal,
         });
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (2, 7, 30).into(),
@@ -517,6 +545,24 @@ impl WorldGenProvider for VisualValidationWorldGen {
 }
 
 fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
+    let mut soil_grass = [BlockRuntimeId(0); SOIL_GRASS_VARIANT_COUNT];
+    let mut soil_medium_normal = None;
+
+    for (slot, variant) in soil_grass.iter_mut().zip(SOIL_GRASS_VARIANTS) {
+        let block_id = init.block_id_by_key(variant.key).unwrap_or_else(|| {
+            panic!(
+                "vanilla essentials worldgen requires resolved soil/grass variant block id {}",
+                variant.key
+            )
+        });
+
+        if variant.fertility == "medium" && variant.coverage == "normal" {
+            soil_medium_normal = Some(block_id);
+        }
+
+        *slot = block_id;
+    }
+
     FlatBlockIds {
         stone: init
             .block_id_by_key(STONE_KEY)
@@ -536,6 +582,9 @@ fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
         coarse_dirt: init
             .block_id_by_key(COARSE_DIRT_KEY)
             .expect("vanilla essentials worldgen requires resolved coarse dirt block id"),
+        soil_grass,
+        soil_medium_normal: soil_medium_normal
+            .expect("vanilla essentials worldgen requires soil_medium_normal block id"),
         glass: init
             .block_id_by_key(GLASS_KEY)
             .expect("vanilla essentials worldgen requires resolved glass block id"),
@@ -571,6 +620,12 @@ mod worldgen_tests {
             .insert(COARSE_DIRT_KEY.to_string(), BlockRuntimeId(6));
         init.block_ids
             .insert(GLASS_KEY.to_string(), BlockRuntimeId(7));
+        for (index, variant) in SOIL_GRASS_VARIANTS.iter().enumerate() {
+            init.block_ids.insert(
+                variant.key.to_string(),
+                BlockRuntimeId(8 + u32::try_from(index).expect("test index fits u32")),
+            );
+        }
         init
     }
 
@@ -651,6 +706,24 @@ mod worldgen_tests {
             )),
             "visual validation scene should display generated limestone rock variants"
         );
+
+        assert!(
+            output.writes.iter().any(|write| matches!(
+                write,
+                WorldTerrainWrite::FillBox { block_id, min, max } if *block_id == BlockRuntimeId(13) && min.y == 5 && max.y == 6
+            )),
+            "flat terrain top layer should use generated soil_medium_normal"
+        );
+
+        for id in 8..=16 {
+            assert!(
+                output.writes.iter().any(|write| matches!(
+                    write,
+                    WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(id)
+                )),
+                "visual validation scene should display generated soil/grass variant block id {id}"
+            );
+        }
     }
 
     #[test]

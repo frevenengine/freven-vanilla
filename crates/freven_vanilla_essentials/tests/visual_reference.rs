@@ -11,8 +11,36 @@ const TEXTURES: &[(&str, &str)] = &[
     ("freven.vanilla:textures/granite", "textures/granite.png"),
     ("freven.vanilla:textures/grass", "textures/grass.png"),
     (
+        "freven.vanilla:textures/grass_normal_side",
+        "textures/grass_normal_side.png",
+    ),
+    (
+        "freven.vanilla:textures/grass_normal_top",
+        "textures/grass_normal_top.png",
+    ),
+    (
+        "freven.vanilla:textures/grass_sparse_side",
+        "textures/grass_sparse_side.png",
+    ),
+    (
+        "freven.vanilla:textures/grass_sparse_top",
+        "textures/grass_sparse_top.png",
+    ),
+    (
         "freven.vanilla:textures/limestone",
         "textures/limestone.png",
+    ),
+    (
+        "freven.vanilla:textures/soil_medium",
+        "textures/soil_medium.png",
+    ),
+    (
+        "freven.vanilla:textures/soil_poor",
+        "textures/soil_poor.png",
+    ),
+    (
+        "freven.vanilla:textures/soil_rich",
+        "textures/soil_rich.png",
     ),
     ("freven.vanilla:textures/stone", "textures/stone.png"),
 ];
@@ -30,6 +58,7 @@ const MATERIALS: &[&str] = &[
 const MODELS: &[&str] = &[
     "freven.vanilla:models/block/cube_all",
     "freven.vanilla:models/block/cube_faces",
+    "freven.vanilla:models/block/topsoil_overlay",
 ];
 
 const BLOCK_VISUALS: &[&str] = &[
@@ -46,6 +75,9 @@ const BLOCK_DESCRIPTOR_MATERIALS: &[&str] = &[
     "freven.vanilla:block/granite",
     "freven.vanilla:block/grass",
     "freven.vanilla:block/limestone",
+    "freven.vanilla:block/soil_poor",
+    "freven.vanilla:block/soil_medium",
+    "freven.vanilla:block/soil_rich",
     "freven.vanilla:block/stone",
 ];
 
@@ -192,6 +224,97 @@ fn vanilla_rock_family_is_authored_as_generated_content_source() {
 }
 
 #[test]
+fn vanilla_soil_grass_family_is_layered_topsoil_content() {
+    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let blocks = read_repo_file("crates/freven_vanilla_essentials/src/blocks.rs");
+    let worldgen = read_repo_file("crates/freven_vanilla_essentials/src/lib.rs");
+
+    assert!(
+        manifest.contains("key = \"freven.vanilla:families/soil_grass\""),
+        "Vanilla should declare one soil/grass content family"
+    );
+
+    for texture in [
+        "freven.vanilla:textures/soil_poor",
+        "freven.vanilla:textures/soil_medium",
+        "freven.vanilla:textures/soil_rich",
+        "freven.vanilla:textures/grass_sparse_top",
+        "freven.vanilla:textures/grass_sparse_side",
+        "freven.vanilla:textures/grass_normal_top",
+        "freven.vanilla:textures/grass_normal_side",
+    ] {
+        assert!(
+            manifest.contains(&format!("key = \"{texture}\"")),
+            "soil/grass family should use compact layered texture set item {texture}"
+        );
+    }
+
+    for forbidden_precomposed in [
+        "soil_poor_normal_top",
+        "soil_medium_sparse_side",
+        "soil_rich_normal_top",
+    ] {
+        assert!(
+            !manifest.contains(forbidden_precomposed),
+            "soil/grass family must not use precomposed per-fertility coverage texture {forbidden_precomposed}"
+        );
+    }
+
+    assert!(
+        manifest.contains("key = \"freven.vanilla:models/block/topsoil_overlay\"")
+            && manifest.contains("kind = \"cuboid_parts\"")
+            && manifest.contains("material_slots = [\"base\", \"grass_side\", \"grass_top\"]"),
+        "soil/grass family should use a reusable layered TopSoil cuboid_parts model"
+    );
+
+    assert!(
+        manifest.contains("[[families.templates.variants]]")
+            && manifest.contains("coverage = \"bare\"")
+            && manifest.contains("model = \"freven.vanilla:models/block/cube_all\"")
+            && manifest.contains("material = \"block/soil_{fertility}\""),
+        "bare soil variants should expand to plain soil cube_all visuals"
+    );
+
+    assert!(
+        manifest.contains("coverage = \"sparse\"")
+            && manifest.contains("coverage = \"normal\"")
+            && manifest.contains("model = \"freven.vanilla:models/block/topsoil_overlay\"")
+            && manifest.contains("grass_top = \"block/grass_sparse_top\"")
+            && manifest.contains("grass_side = \"block/grass_normal_side\""),
+        "covered soil variants should expand to layered grass top/side overlay visuals"
+    );
+
+    assert!(
+        manifest.contains("render_layer = \"cutout\"")
+            && manifest.contains("alpha_cutoff_u8 = 96")
+            && manifest.contains("source = \"freven.core:tint/world_gradient_v1\""),
+        "grass overlay materials should be cutout and request world-sampled tint"
+    );
+
+    for variant in [
+        "soil_poor_bare",
+        "soil_poor_sparse",
+        "soil_poor_normal",
+        "soil_medium_bare",
+        "soil_medium_sparse",
+        "soil_medium_normal",
+        "soil_rich_bare",
+        "soil_rich_sparse",
+        "soil_rich_normal",
+    ] {
+        assert!(
+            blocks.contains(&format!("freven.vanilla:{variant}")),
+            "registered Vanilla blocks should include generated soil/grass variant {variant}"
+        );
+    }
+
+    assert!(
+        worldgen.contains("soil_medium_normal"),
+        "visual validation worldgen should use generated soil_medium_normal as terrain/showcase floor"
+    );
+}
+
+#[test]
 fn vanilla_glass_material_is_authored_as_transparent_content() {
     let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
 
@@ -232,6 +355,10 @@ fn vanilla_blocks_have_authored_model_and_visual_bindings() {
     assert!(
         manifest.contains("kind = \"cube_faces\""),
         "Vanilla should author reusable cube_faces model bindings"
+    );
+    assert!(
+        manifest.contains("kind = \"cuboid_parts\""),
+        "Vanilla should author reusable cuboid_parts model bindings for layered TopSoil visuals"
     );
 
     assert!(
@@ -402,6 +529,14 @@ fn visual_validation_docs_are_linked() {
     assert!(
         preset.contains("greedy-meshed large faces"),
         "preset docs should call out greedy UV validation"
+    );
+    assert!(
+        preset.contains("TopSoil family patch"),
+        "preset docs should call out the layered soil/grass showcase"
+    );
+    assert!(
+        preset.contains("freven.core:tint/world_gradient_v1"),
+        "preset docs should call out the world-sampled tint source"
     );
 }
 

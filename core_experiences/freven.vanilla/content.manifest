@@ -27,9 +27,44 @@ path = "textures/grass.png"
 sha256 = "b0ecffa9213bb4b8eeee652da1436c7e03897205f8ab71f84d28a3d163d302dd"
 
 [[textures]]
+key = "freven.vanilla:textures/grass_normal_side"
+path = "textures/grass_normal_side.png"
+sha256 = "3d1eb8404d79462fd41479342ecb023ce9c21999e48690eebcf53a3e16f3d97f"
+
+[[textures]]
+key = "freven.vanilla:textures/grass_normal_top"
+path = "textures/grass_normal_top.png"
+sha256 = "9661fea73896df4365e2c5c4023a6ebe0020bb2650edc6d2ccac4c595fed4cdf"
+
+[[textures]]
+key = "freven.vanilla:textures/grass_sparse_side"
+path = "textures/grass_sparse_side.png"
+sha256 = "3c73cfa93145508da367da36f66628a476a93ef827617ed8d45900a490c4427e"
+
+[[textures]]
+key = "freven.vanilla:textures/grass_sparse_top"
+path = "textures/grass_sparse_top.png"
+sha256 = "5ce31eabce01c259a84a598c03fb0e54fb965bc3885218c95ab970fbec8386a9"
+
+[[textures]]
 key = "freven.vanilla:textures/limestone"
 path = "textures/limestone.png"
 sha256 = "e660b0a9d3e79b2aaa1cec4ee7cc5e30c91e0cfe0a3a36157dfb95096caa355c"
+
+[[textures]]
+key = "freven.vanilla:textures/soil_medium"
+path = "textures/soil_medium.png"
+sha256 = "8890510e25625375001cbc0fa34a40b33c66d5885f71b0e0d7bad85f9282c08d"
+
+[[textures]]
+key = "freven.vanilla:textures/soil_poor"
+path = "textures/soil_poor.png"
+sha256 = "db1eb7773b7cac3b6a9154d75c2ec00c1c82cf63b334cf5a0b439c8162ac8700"
+
+[[textures]]
+key = "freven.vanilla:textures/soil_rich"
+path = "textures/soil_rich.png"
+sha256 = "c812e4c9765a3b64177b04fa4864464871696a7c97eb4f12d2393c6e01f780ce"
 
 [[textures]]
 key = "freven.vanilla:textures/stone"
@@ -63,9 +98,53 @@ texture = "freven.vanilla:textures/dirt"
 fallback_debug_tint_rgba = 1800350463
 
 [[materials]]
+key = "freven.vanilla:block/grass_normal_side"
+texture = "freven.vanilla:textures/grass_normal_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/world_gradient_v1"
+fallback_tint_rgba = 1605584383
+
+[[materials]]
+key = "freven.vanilla:block/grass_normal_top"
+texture = "freven.vanilla:textures/grass_normal_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/world_gradient_v1"
+fallback_tint_rgba = 2044286975
+
+[[materials]]
 key = "freven.vanilla:block/grass_side"
 texture = "freven.vanilla:textures/coarse_dirt"
 fallback_debug_tint_rgba = 2052735231
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_side"
+texture = "freven.vanilla:textures/grass_sparse_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/world_gradient_v1"
+fallback_tint_rgba = 1605584383
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_top"
+texture = "freven.vanilla:textures/grass_sparse_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/world_gradient_v1"
+fallback_tint_rgba = 2044286975
 
 [[materials]]
 key = "freven.vanilla:block/grass_top"
@@ -79,6 +158,79 @@ kind = "cube_all"
 [[models]]
 key = "freven.vanilla:models/block/cube_faces"
 kind = "cube_faces"
+
+[[models]]
+key = "freven.vanilla:models/block/topsoil_overlay"
+kind = "cuboid_parts"
+material_slots = ["base", "grass_side", "grass_top"]
+
+[[models.parts]]
+name = "base"
+from = [0.0, 0.0, 0.0]
+to = [1.0, 1.0, 1.0]
+
+[models.parts.faces.bottom]
+material = "base"
+
+[models.parts.faces.east]
+material = "base"
+
+[models.parts.faces.north]
+material = "base"
+
+[models.parts.faces.south]
+material = "base"
+
+[models.parts.faces.top]
+material = "base"
+
+[models.parts.faces.west]
+material = "base"
+
+[[models.parts]]
+name = "grass_east"
+from = [1.0, 0.0, 0.0]
+to = [1.001, 1.0, 1.0]
+
+[models.parts.faces.east]
+material = "grass_side"
+cull = false
+
+[[models.parts]]
+name = "grass_north"
+from = [0.0, 0.0, -0.001]
+to = [1.0, 1.0, 0.0]
+
+[models.parts.faces.north]
+material = "grass_side"
+cull = false
+
+[[models.parts]]
+name = "grass_south"
+from = [0.0, 0.0, 1.0]
+to = [1.0, 1.0, 1.001]
+
+[models.parts.faces.south]
+material = "grass_side"
+cull = false
+
+[[models.parts]]
+name = "grass_top"
+from = [0.0, 1.0, 0.0]
+to = [1.0, 1.001, 1.0]
+
+[models.parts.faces.top]
+material = "grass_top"
+cull = false
+
+[[models.parts]]
+name = "grass_west"
+from = [-0.001, 0.0, 0.0]
+to = [0.0, 1.0, 1.0]
+
+[models.parts.faces.west]
+material = "grass_side"
+cull = false
 
 [[block_visuals]]
 key = "freven.vanilla:visuals/block/coarse_dirt"
@@ -171,6 +323,115 @@ value = "{rock}"
 [[families.templates.tags]]
 tag = "freven:terrain_solids"
 value = "{rock}"
+
+[[families]]
+key = "freven.vanilla:families/soil_grass"
+
+[families.family]
+kind = "content_family"
+namespace = "freven.vanilla"
+description = "Vanilla TopSoil-style family. Bare variants are plain soil cubes; covered variants add neutral alpha grass overlays with world-sampled tint."
+
+[[families.axes]]
+name = "fertility"
+
+[[families.axes.values]]
+id = "poor"
+display = "Poor"
+fallback_tint_rgba = "5B4632FF"
+
+[[families.axes.values]]
+id = "medium"
+display = "Medium"
+fallback_tint_rgba = "6F4E2DFF"
+
+[[families.axes.values]]
+id = "rich"
+display = "Rich"
+fallback_tint_rgba = "46362AFF"
+
+[[families.axes]]
+name = "coverage"
+
+[[families.axes.values]]
+id = "bare"
+display = "Bare"
+
+[[families.axes.values]]
+id = "sparse"
+display = "Sparse"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"
+
+[[families.axes.values]]
+id = "normal"
+display = "Normal"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"
+[families.templates.material]
+key = "block/soil_{fertility}"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants]]
+coverage = "bare"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_bare"
+target = "soil_{fertility}_bare"
+model = "freven.vanilla:models/block/cube_all"
+material = "block/soil_{fertility}"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_bare"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_bare"
+
+[[families.templates.variants]]
+coverage = "sparse"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_sparse"
+target = "soil_{fertility}_sparse"
+model = "freven.vanilla:models/block/topsoil_overlay"
+
+[families.templates.variants.visual.materials]
+base = "block/soil_{fertility}"
+grass_side = "block/grass_sparse_side"
+grass_top = "block/grass_sparse_top"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_sparse"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_sparse"
+
+[[families.templates.variants]]
+coverage = "normal"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_normal"
+target = "soil_{fertility}_normal"
+model = "freven.vanilla:models/block/topsoil_overlay"
+
+[families.templates.variants.visual.materials]
+base = "block/soil_{fertility}"
+grass_side = "block/grass_normal_side"
+grass_top = "block/grass_normal_top"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_normal"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_normal"
 
 [[block_tags]]
 key = "freven:glass"
