@@ -127,7 +127,7 @@ Vanilla now authors reusable model keys and block visual bindings in:
 core_experiences/freven.vanilla/content.manifest
 ~~~
 
-The current rock material/visual/tag entries are generated from `freven.vanilla:families/rock`, whose axis values include `stone`, `granite`, and `limestone` with future-use metadata such as rock group, worldgen weight, soil pH, and weathering factor.
+The current rock material/visual/tag entries are generated from `freven.vanilla:families/rock`, whose axis values include `stone`, `granite`, and `limestone`. The `rock_group` field is visual/provenance metadata only; Vanilla v1 intentionally does not author fake worldgen weights, soil chemistry, or weathering gameplay metadata in the visual content pack.
 
 The current reusable model keys are:
 

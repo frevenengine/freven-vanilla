@@ -196,15 +196,15 @@ fn vanilla_rock_family_is_authored_as_generated_content_source() {
         );
     }
 
-    for metadata in [
-        "rock_group",
-        "worldgen_weight",
-        "soil_ph",
-        "weathering_factor",
-    ] {
+    assert!(
+        manifest.contains("rock_group"),
+        "Vanilla rock family may keep rock_group as visual/provenance metadata"
+    );
+
+    for forbidden_metadata in ["worldgen_weight", "soil_ph", "weathering_factor"] {
         assert!(
-            manifest.contains(metadata),
-            "Vanilla rock family should preserve future-use metadata field {metadata}"
+            !manifest.contains(forbidden_metadata),
+            "Vanilla visual content must not imply unused gameplay/worldgen metadata field {forbidden_metadata}"
         );
     }
 
