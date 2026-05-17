@@ -1,0 +1,12 @@
+schema = 1
+id = "freven.vanilla.visual_validation"
+version = "0.1.0"
+title = "Vanilla Visual Validation"
+base = "freven.vanilla"
+
+[[layers]]
+id = "freven.vanilla.visual_validation"
+title = "Vanilla Visual Validation Preset"
+
+[layers.defaults]
+worldgen = "freven.vanilla:visual_validation"

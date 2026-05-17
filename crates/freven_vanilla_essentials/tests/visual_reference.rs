@@ -177,3 +177,69 @@ fn vanilla_visual_docs_are_linked() {
         "README should point at the authored Vanilla content manifest"
     );
 }
+
+#[test]
+fn visual_validation_stack_selects_visual_validation_worldgen() {
+    let stack =
+        read_repo_file("core_experiences/freven.vanilla.visual_validation/experience.stack.toml");
+
+    assert!(
+        stack.contains("id = \"freven.vanilla.visual_validation\""),
+        "visual validation stack should publish a stable experience id"
+    );
+    assert!(
+        stack.contains("base = \"freven.vanilla\""),
+        "visual validation stack should layer over Vanilla"
+    );
+    assert!(
+        stack.contains("worldgen = \"freven.vanilla:visual_validation\""),
+        "visual validation stack should select the curated worldgen provider"
+    );
+}
+
+#[test]
+fn visual_validation_docs_are_linked() {
+    let readme = read_repo_file("README.md");
+    let content_pack = read_repo_file("docs/VANILLA_VISUAL_CONTENT_PACK_v1.md");
+    let preset = read_repo_file("docs/VANILLA_VISUAL_VALIDATION_PRESET.md");
+
+    assert!(
+        readme.contains("docs/VANILLA_VISUAL_VALIDATION_PRESET.md"),
+        "README should link to the visual validation preset"
+    );
+    assert!(
+        content_pack.contains("VANILLA_VISUAL_VALIDATION_PRESET.md"),
+        "content pack docs should link to the visual validation preset"
+    );
+    assert!(
+        preset.contains("freven.vanilla.visual_validation"),
+        "preset docs should include the launchable stack id"
+    );
+    assert!(
+        preset.contains("freven.vanilla:visual_validation"),
+        "preset docs should include the selected worldgen key"
+    );
+    assert!(
+        preset.contains("Current rc10 coverage"),
+        "preset docs should define the current supported visual coverage"
+    );
+    assert!(
+        preset.contains("Not covered by this preset yet"),
+        "preset docs should avoid claiming future model/tint/family capabilities"
+    );
+    assert!(
+        preset.contains("greedy-meshed large faces"),
+        "preset docs should call out greedy UV validation"
+    );
+}
+
+#[test]
+fn vanilla_does_not_override_engine_owned_voxel_shader() {
+    let shader_override = repo_root()
+        .join("core_experiences/freven.vanilla/mods/freven.vanilla.core/assets/shaders/voxel.wgsl");
+
+    assert!(
+        !shader_override.exists(),
+        "Vanilla must not override the engine-owned voxel renderer shader ABI"
+    );
+}

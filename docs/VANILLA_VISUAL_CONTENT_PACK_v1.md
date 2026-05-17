@@ -126,3 +126,5 @@ The Vanilla repo keeps regression tests for:
 
 Runtime/devkit validation should additionally run content/assets checks before
 release packaging.
+
+For screenshot and regression checks, use [Vanilla Visual Validation Preset](VANILLA_VISUAL_VALIDATION_PRESET.md).
