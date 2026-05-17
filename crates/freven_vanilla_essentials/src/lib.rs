@@ -10,7 +10,10 @@
 //! - keep output in SDK worldgen section format
 
 pub(crate) use crate::blocks::STONE_KEY;
-use crate::blocks::{DIRT_KEY, GRASS_KEY, dirt_def, grass_def, stone_def};
+use crate::blocks::{
+    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRASS_KEY, coarse_dirt_def, dirt_def, glass_def,
+    grass_def, stone_def,
+};
 use freven_avatar_api::{
     AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
     ClientApi,
@@ -143,6 +146,10 @@ pub fn register(ctx: &mut ModContext<'_>) {
         .expect("vanilla essentials must register freven.vanilla:dirt block");
     ctx.register_block(GRASS_KEY, grass_def())
         .expect("vanilla essentials must register freven.vanilla:grass block");
+    ctx.register_block(COARSE_DIRT_KEY, coarse_dirt_def())
+        .expect("vanilla essentials must register freven.vanilla:coarse_dirt block");
+    ctx.register_block(GLASS_KEY, glass_def())
+        .expect("vanilla essentials must register freven.vanilla:glass block");
 
     let break_kind = ctx
         .register_action_kind(ACTION_KIND_BREAK_KEY)
