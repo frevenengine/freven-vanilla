@@ -1,6 +1,8 @@
 use freven_block_sdk_types::{BlockDescriptor, RenderLayer};
 
 pub(crate) const STONE_KEY: &str = "freven.vanilla:stone";
+pub(crate) const GRANITE_KEY: &str = "freven.vanilla:granite";
+pub(crate) const LIMESTONE_KEY: &str = "freven.vanilla:limestone";
 pub(crate) const DIRT_KEY: &str = "freven.vanilla:dirt";
 pub(crate) const GRASS_KEY: &str = "freven.vanilla:grass";
 pub(crate) const COARSE_DIRT_KEY: &str = "freven.vanilla:coarse_dirt";
@@ -9,6 +11,16 @@ pub(crate) const GLASS_KEY: &str = "freven.vanilla:glass";
 #[inline]
 pub(crate) fn stone_def() -> BlockDescriptor {
     BlockDescriptor::solid_material_cube("freven.vanilla:block/stone", 0x8080_80FF)
+}
+
+#[inline]
+pub(crate) fn granite_def() -> BlockDescriptor {
+    BlockDescriptor::solid_material_cube("freven.vanilla:block/granite", 0x8C85_80FF)
+}
+
+#[inline]
+pub(crate) fn limestone_def() -> BlockDescriptor {
+    BlockDescriptor::solid_material_cube("freven.vanilla:block/limestone", 0xC8C2_A8FF)
 }
 
 #[inline]
@@ -44,7 +56,14 @@ mod tests {
 
     #[test]
     fn terrain_blocks_use_material_keys() {
-        for def in [stone_def(), dirt_def(), grass_def(), coarse_dirt_def()] {
+        for def in [
+            stone_def(),
+            granite_def(),
+            limestone_def(),
+            dirt_def(),
+            grass_def(),
+            coarse_dirt_def(),
+        ] {
             assert!(def.is_solid());
             assert!(def.is_opaque());
             assert_eq!(def.render_layer(), RenderLayer::Opaque);

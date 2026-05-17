@@ -8,7 +8,12 @@ const TEXTURES: &[(&str, &str)] = &[
     ),
     ("freven.vanilla:textures/dirt", "textures/dirt.png"),
     ("freven.vanilla:textures/glass", "textures/glass.png"),
+    ("freven.vanilla:textures/granite", "textures/granite.png"),
     ("freven.vanilla:textures/grass", "textures/grass.png"),
+    (
+        "freven.vanilla:textures/limestone",
+        "textures/limestone.png",
+    ),
     ("freven.vanilla:textures/stone", "textures/stone.png"),
 ];
 
@@ -20,7 +25,6 @@ const MATERIALS: &[&str] = &[
     "freven.vanilla:block/grass_bottom",
     "freven.vanilla:block/grass_side",
     "freven.vanilla:block/grass_top",
-    "freven.vanilla:block/stone",
 ];
 
 const MODELS: &[&str] = &[
@@ -33,14 +37,15 @@ const BLOCK_VISUALS: &[&str] = &[
     "freven.vanilla:visuals/block/dirt",
     "freven.vanilla:visuals/block/glass",
     "freven.vanilla:visuals/block/grass",
-    "freven.vanilla:visuals/block/stone",
 ];
 
 const BLOCK_DESCRIPTOR_MATERIALS: &[&str] = &[
     "freven.vanilla:block/coarse_dirt",
     "freven.vanilla:block/dirt",
     "freven.vanilla:block/glass",
+    "freven.vanilla:block/granite",
     "freven.vanilla:block/grass",
+    "freven.vanilla:block/limestone",
     "freven.vanilla:block/stone",
 ];
 
@@ -112,6 +117,49 @@ fn vanilla_visual_pack_materials_are_declared_in_content_manifest() {
 }
 
 #[test]
+fn vanilla_rock_family_is_authored_as_generated_content_source() {
+    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+
+    assert!(
+        manifest.contains("key = \"freven.vanilla:families/rock\""),
+        "Vanilla should declare one rock content family"
+    );
+
+    for rock in ["stone", "granite", "limestone"] {
+        assert!(
+            manifest.contains(&format!("id = \"{rock}\"")),
+            "Vanilla rock family should include {rock}"
+        );
+    }
+
+    for metadata in [
+        "rock_group",
+        "worldgen_weight",
+        "soil_ph",
+        "weathering_factor",
+    ] {
+        assert!(
+            manifest.contains(metadata),
+            "Vanilla rock family should preserve future-use metadata field {metadata}"
+        );
+    }
+
+    for template in [
+        "key = \"block/{rock}\"",
+        "texture = \"textures/{rock}\"",
+        "key = \"visuals/block/{rock}\"",
+        "target = \"{rock}\"",
+        "tag = \"freven:stones\"",
+        "tag = \"freven:terrain_solids\"",
+    ] {
+        assert!(
+            manifest.contains(template),
+            "Vanilla rock family should define generated template {template}"
+        );
+    }
+}
+
+#[test]
 fn vanilla_glass_material_is_authored_as_transparent_content() {
     let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
 
@@ -152,6 +200,13 @@ fn vanilla_blocks_have_authored_model_and_visual_bindings() {
     assert!(
         manifest.contains("kind = \"cube_faces\""),
         "Vanilla should author reusable cube_faces model bindings"
+    );
+
+    assert!(
+        manifest.contains("key = \"freven.vanilla:families/rock\"")
+            && manifest.contains("key = \"visuals/block/{rock}\"")
+            && manifest.contains("model = \"freven.vanilla:models/block/cube_all\""),
+        "rock visuals should be generated from the Vanilla rock family"
     );
 
     let grass_visual = r#"[[block_visuals]]

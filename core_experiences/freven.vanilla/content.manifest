@@ -17,9 +17,19 @@ path = "textures/glass.png"
 sha256 = "bdaa6cc27a24689731f416a218715c92d40cbdd6719c2e412d0b92e84357028d"
 
 [[textures]]
+key = "freven.vanilla:textures/granite"
+path = "textures/granite.png"
+sha256 = "0b946646592f4c3b68bd99ffb8fc00d1384e6763b2d9f4317e894754e5842c8f"
+
+[[textures]]
 key = "freven.vanilla:textures/grass"
 path = "textures/grass.png"
 sha256 = "16446f3d5996ab814950744c88e7c535539d1c794451e3891e5ee1e5bd9531f3"
+
+[[textures]]
+key = "freven.vanilla:textures/limestone"
+path = "textures/limestone.png"
+sha256 = "8673d81cb9768fa40bb9eb3e580ade49b2b176961cd2a7c503e07ff7f6883723"
 
 [[textures]]
 key = "freven.vanilla:textures/stone"
@@ -61,11 +71,6 @@ fallback_debug_tint_rgba = 2052735231
 key = "freven.vanilla:block/grass_top"
 texture = "freven.vanilla:textures/grass"
 fallback_debug_tint_rgba = 1067666943
-
-[[materials]]
-key = "freven.vanilla:block/stone"
-texture = "freven.vanilla:textures/stone"
-fallback_debug_tint_rgba = 2155905279
 
 [[models]]
 key = "freven.vanilla:models/block/cube_all"
@@ -109,13 +114,63 @@ bottom = "freven.vanilla:block/grass_bottom"
 side = "freven.vanilla:block/grass_side"
 top = "freven.vanilla:block/grass_top"
 
-[[block_visuals]]
-key = "freven.vanilla:visuals/block/stone"
-target = "freven.vanilla:stone"
-model = "freven.vanilla:models/block/cube_all"
+[[families]]
+key = "freven.vanilla:families/rock"
 
-[block_visuals.materials]
-all = "freven.vanilla:block/stone"
+[families.family]
+kind = "content_family"
+namespace = "freven.vanilla"
+description = "Vanilla baseline rock family. Generated entries stay semantic content, not renderer/runtime internals."
+
+[[families.axes]]
+name = "rock"
+
+[[families.axes.values]]
+id = "granite"
+display = "Granite"
+fallback_tint_rgba = "8C8580FF"
+rock_group = "igneous"
+worldgen_weight = "0.70"
+soil_ph = "6.4"
+weathering_factor = "0.35"
+
+[[families.axes.values]]
+id = "limestone"
+display = "Limestone"
+fallback_tint_rgba = "C8C2A8FF"
+rock_group = "sedimentary"
+worldgen_weight = "0.55"
+soil_ph = "7.8"
+weathering_factor = "0.62"
+
+[[families.axes.values]]
+id = "stone"
+display = "Stone"
+fallback_tint_rgba = "808080FF"
+rock_group = "generic"
+worldgen_weight = "1.00"
+soil_ph = "7.0"
+weathering_factor = "0.50"
+
+[families.templates.material]
+key = "block/{rock}"
+texture = "textures/{rock}"
+fallback_debug_tint_rgba = "{rock.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[families.templates.visual]
+key = "visuals/block/{rock}"
+target = "{rock}"
+model = "freven.vanilla:models/block/cube_all"
+material = "block/{rock}"
+
+[[families.templates.tags]]
+tag = "freven:stones"
+value = "{rock}"
+
+[[families.templates.tags]]
+tag = "freven:terrain_solids"
+value = "{rock}"
 
 [[block_tags]]
 key = "freven:glass"
@@ -126,12 +181,8 @@ key = "freven:soils"
 blocks = ["freven.vanilla:coarse_dirt", "freven.vanilla:dirt", "freven.vanilla:grass"]
 
 [[block_tags]]
-key = "freven:stones"
-blocks = ["freven.vanilla:stone"]
-
-[[block_tags]]
 key = "freven:terrain_solids"
-blocks = ["freven.vanilla:coarse_dirt", "freven.vanilla:dirt", "freven.vanilla:grass", "freven.vanilla:stone"]
+blocks = ["freven.vanilla:coarse_dirt", "freven.vanilla:dirt", "freven.vanilla:grass"]
 
 [[block_tags]]
 key = "freven:transparent_blocks"

@@ -12,6 +12,8 @@ Vanilla currently uses the SDK material-key block descriptor bridge for the firs
 terrain blocks:
 
 - `freven.vanilla:stone`
+- `freven.vanilla:granite`
+- `freven.vanilla:limestone`
 - `freven.vanilla:dirt`
 - `freven.vanilla:grass`
 
@@ -49,7 +51,7 @@ Allowed in Vanilla content/code:
 - stable namespaced texture keys, for example `freven.vanilla:textures/grass`;
 - fallback debug tints that keep content visible when real assets are missing or
   unsupported;
-- content manifest declarations for authored textures, materials, and tags.
+- content manifest declarations for authored textures, materials, tags, and generated content families.
 
 Not allowed as Vanilla authoring surface:
 
@@ -123,6 +125,6 @@ only first-party content facts:
 - which model material slots are bound to which Vanilla material keys;
 - which material keys resolve to which Vanilla texture keys and render policy.
 
-No engine code may special-case the words `stone`, `dirt`, `grass`, or `glass`.
+No engine code may special-case the words `stone`, `granite`, `limestone`, `dirt`, `grass`, or `glass`.
 The current `BlockDescriptor::solid_material_cube(...)` bridge remains as
 gameplay/fallback data, not as the authored visual happy path.

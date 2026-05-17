@@ -11,8 +11,8 @@
 
 pub(crate) use crate::blocks::STONE_KEY;
 use crate::blocks::{
-    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRASS_KEY, coarse_dirt_def, dirt_def, glass_def,
-    grass_def, stone_def,
+    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRANITE_KEY, GRASS_KEY, LIMESTONE_KEY, coarse_dirt_def,
+    dirt_def, glass_def, granite_def, grass_def, limestone_def, stone_def,
 };
 use freven_avatar_api::{
     AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
@@ -95,6 +95,8 @@ pub(crate) fn place_action_kind_id() -> ActionKindId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FlatBlockIds {
     stone: BlockRuntimeId,
+    granite: BlockRuntimeId,
+    limestone: BlockRuntimeId,
     dirt: BlockRuntimeId,
     grass: BlockRuntimeId,
     coarse_dirt: BlockRuntimeId,
@@ -145,6 +147,10 @@ pub fn register(ctx: &mut ModContext<'_>) {
 
     ctx.register_block(STONE_KEY, stone_def())
         .expect("vanilla essentials must register freven.vanilla:stone block");
+    ctx.register_block(GRANITE_KEY, granite_def())
+        .expect("vanilla essentials must register freven.vanilla:granite block");
+    ctx.register_block(LIMESTONE_KEY, limestone_def())
+        .expect("vanilla essentials must register freven.vanilla:limestone block");
     ctx.register_block(DIRT_KEY, dirt_def())
         .expect("vanilla essentials must register freven.vanilla:dirt block");
     ctx.register_block(GRASS_KEY, grass_def())
@@ -373,13 +379,16 @@ impl VisualValidationWorldGen {
             feet_position: [16.5, 7.0, 24.5],
         });
 
-        // Five material swatches on top of the flat terrain.
+        // Seven material swatches on top of the flat terrain, including
+        // the generated Vanilla rock family variants.
         let swatches = [
-            (4, ids.stone),
-            (8, ids.dirt),
-            (12, ids.grass),
-            (16, ids.coarse_dirt),
-            (20, ids.glass),
+            (2, ids.stone),
+            (6, ids.granite),
+            (10, ids.limestone),
+            (14, ids.dirt),
+            (18, ids.grass),
+            (22, ids.coarse_dirt),
+            (26, ids.glass),
         ];
 
         for (x, block_id) in swatches {
@@ -399,7 +408,7 @@ impl VisualValidationWorldGen {
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (9, 6, 16).into(),
             max: (12, 10, 17).into(),
-            block_id: ids.stone,
+            block_id: ids.granite,
         });
 
         // Greedy-mesh UV probes. These large quads catch atlas bleeding,
@@ -435,7 +444,7 @@ impl VisualValidationWorldGen {
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (20, 10, 12).into(),
             max: (28, 11, 20).into(),
-            block_id: ids.stone,
+            block_id: ids.limestone,
         });
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (20, 7, 12).into(),
@@ -468,14 +477,22 @@ impl VisualValidationWorldGen {
         output.writes.push(WorldTerrainWrite::FillBox {
             min: (27, 8, 24).into(),
             max: (29, 9, 26).into(),
-            block_id: ids.stone,
+            block_id: ids.granite,
         });
 
         // Sparse single-block markers exercise SetBlock output and make material
         // drift obvious in screenshots.
-        for (index, block_id) in [ids.stone, ids.dirt, ids.grass, ids.coarse_dirt, ids.glass]
-            .into_iter()
-            .enumerate()
+        for (index, block_id) in [
+            ids.stone,
+            ids.granite,
+            ids.limestone,
+            ids.dirt,
+            ids.grass,
+            ids.coarse_dirt,
+            ids.glass,
+        ]
+        .into_iter()
+        .enumerate()
         {
             output.writes.push(WorldTerrainWrite::SetBlock {
                 pos: (4 + index as i32 * 2, 7, 24).into(),
@@ -504,6 +521,12 @@ fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
         stone: init
             .block_id_by_key(STONE_KEY)
             .expect("vanilla essentials worldgen requires resolved stone block id"),
+        granite: init
+            .block_id_by_key(GRANITE_KEY)
+            .expect("vanilla essentials worldgen requires resolved granite block id"),
+        limestone: init
+            .block_id_by_key(LIMESTONE_KEY)
+            .expect("vanilla essentials worldgen requires resolved limestone block id"),
         dirt: init
             .block_id_by_key(DIRT_KEY)
             .expect("vanilla essentials worldgen requires resolved dirt block id"),
@@ -537,13 +560,17 @@ mod worldgen_tests {
         init.block_ids
             .insert(STONE_KEY.to_string(), BlockRuntimeId(1));
         init.block_ids
-            .insert(DIRT_KEY.to_string(), BlockRuntimeId(2));
+            .insert(GRANITE_KEY.to_string(), BlockRuntimeId(2));
         init.block_ids
-            .insert(GRASS_KEY.to_string(), BlockRuntimeId(3));
+            .insert(LIMESTONE_KEY.to_string(), BlockRuntimeId(3));
         init.block_ids
-            .insert(COARSE_DIRT_KEY.to_string(), BlockRuntimeId(4));
+            .insert(DIRT_KEY.to_string(), BlockRuntimeId(4));
         init.block_ids
-            .insert(GLASS_KEY.to_string(), BlockRuntimeId(5));
+            .insert(GRASS_KEY.to_string(), BlockRuntimeId(5));
+        init.block_ids
+            .insert(COARSE_DIRT_KEY.to_string(), BlockRuntimeId(6));
+        init.block_ids
+            .insert(GLASS_KEY.to_string(), BlockRuntimeId(7));
         init
     }
 
@@ -599,16 +626,30 @@ mod worldgen_tests {
         assert!(
             output.writes.iter().any(|write| matches!(
                 write,
-                WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(5)
+                WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(7)
             )),
             "visual validation scene should include transparent glass fill regions"
         );
         assert!(
             output.writes.iter().any(|write| matches!(
                 write,
-                WorldTerrainWrite::SetBlock { block_id, .. } if *block_id == BlockRuntimeId(4)
+                WorldTerrainWrite::SetBlock { block_id, .. } if *block_id == BlockRuntimeId(6)
             )),
             "visual validation scene should include sparse coarse dirt variant markers"
+        );
+        assert!(
+            output.writes.iter().any(|write| matches!(
+                write,
+                WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(2)
+            )),
+            "visual validation scene should display generated granite rock variants"
+        );
+        assert!(
+            output.writes.iter().any(|write| matches!(
+                write,
+                WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(3)
+            )),
+            "visual validation scene should display generated limestone rock variants"
         );
     }
 
