@@ -89,6 +89,38 @@ fn png_header(bytes: &[u8]) -> Option<PngHeader> {
 }
 
 #[test]
+fn vanilla_showcase_textures_are_32x32_rgba() {
+    let content_root = repo_root().join("core_experiences/freven.vanilla/content");
+
+    for (texture_key, texture_path) in TEXTURES {
+        let path = content_root.join(texture_path);
+        let bytes = fs::read(&path).unwrap_or_else(|err| {
+            panic!(
+                "Vanilla texture {texture_key} at {} should be readable: {err}",
+                path.display()
+            )
+        });
+        let header = png_header(&bytes).unwrap_or_else(|| {
+            panic!(
+                "Vanilla texture {texture_key} at {} should be a PNG",
+                path.display()
+            )
+        });
+
+        assert_eq!(
+            header,
+            PngHeader {
+                width: 32,
+                height: 32,
+                bit_depth: 8,
+                color_type: 6,
+            },
+            "Vanilla showcase texture {texture_key} must stay 32x32 RGBA to catch accidental 16x16 regressions"
+        );
+    }
+}
+
+#[test]
 fn vanilla_visual_pack_materials_are_declared_in_content_manifest() {
     let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
 
@@ -286,8 +318,8 @@ fn declared_vanilla_texture_assets_exist_and_match_voxel_png_baseline() {
             "voxel block texture width should be power-of-two: {repo_path}"
         );
         assert_eq!(
-            header.width, 16,
-            "v1 Vanilla visual pack should use 16x16 voxel textures: {repo_path}"
+            header.width, 32,
+            "v1 Vanilla visual pack should use 32x32 voxel textures: {repo_path}"
         );
         assert_eq!(
             header.bit_depth, 8,

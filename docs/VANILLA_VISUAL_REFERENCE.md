@@ -33,7 +33,8 @@ core_experiences/freven.vanilla/content/textures/
 ~~~
 
 This is the transition-era bridge between the old debug-color renderer path and
-the long-term data-driven block visual model.
+the long-term data-driven block visual model. The current first-party showcase
+textures use a 32x32 RGBA baseline.
 
 ## Ownership rules
 
@@ -107,7 +108,7 @@ A healthy Vanilla visual reference should satisfy these checks:
 - `content.manifest` declares material entries for stone, dirt, and grass.
 - Vanilla block descriptors reference stable material keys, not raw renderer ids.
 - Texture files referenced by the manifest exist under the Vanilla content root.
-- Texture files are valid square power-of-two PNGs for the voxel block baseline.
+- Texture files used by the first-party showcase are valid 32x32 RGBA PNGs for the voxel block baseline.
 - Fallback debug colors remain present and diagnosable.
 - README links to this document so modders can find the reference boundary.
 
