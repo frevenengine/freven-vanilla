@@ -29,8 +29,10 @@ All v1 textures are authored PNG files under:
 core_experiences/freven.vanilla/content/textures/
 ~~~
 
-The current pack uses small `16x16` RGBA textures because this is the stable rc10
-voxel-block baseline and is easy for modders to inspect, replace, hash, and copy.
+The current pack uses `32x32` RGBA textures for all first-party terrain/showcase
+textures. This is still not final art direction; it is the rc10 authored baseline
+for readable tiling, per-face material checks, generated rock variants, and future
+tint/lighting regression screenshots.
 
 Each texture is declared in:
 
@@ -67,9 +69,9 @@ side   -> freven.vanilla:block/grass_side   -> freven.vanilla:textures/coarse_di
 bottom -> freven.vanilla:block/grass_bottom -> freven.vanilla:textures/dirt
 ~~~
 
-The side material intentionally reuses an existing coarse-dirt texture for the
-rc10 proof, making the per-face binding obvious without adding final grass-side
-art yet.
+The side material intentionally reuses the authored 32x32 coarse-dirt texture
+for the rc10 proof, making the per-face binding obvious without adding final
+grass-side art yet.
 
 Glass declares:
 
@@ -177,7 +179,7 @@ once the selected product/runtime supports the desired policy.
 The Vanilla repo keeps regression tests for:
 
 - declared texture, model, generated rock family, material, and block visual keys;
-- texture file existence and PNG baseline shape;
+- texture file existence and 32x32 RGBA baseline shape;
 - transparent glass material policy;
 - grass top/side/bottom authored material slots;
 - block descriptors using material keys rather than debug-only colors;

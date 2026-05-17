@@ -32,7 +32,7 @@ The current Vanilla visual baseline uses authored texture/material declarations
 in `core_experiences/freven.vanilla/content.manifest`, with stable material keys
 referenced from the Vanilla block descriptors through the SDK material-key bridge.
 The current Vanilla visual baseline includes a generated rock family for stone,
-granite, and limestone.
+granite, and limestone. The current first-party showcase textures use a 32x32 authored terrain texture baseline.
 
 See [Vanilla Visual Reference](docs/VANILLA_VISUAL_REFERENCE.md) for the ownership
 rules, current bridge status, validation expectations, and follow-up boundaries.

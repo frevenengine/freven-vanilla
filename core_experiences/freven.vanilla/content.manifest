@@ -4,37 +4,37 @@ entries = []
 [[textures]]
 key = "freven.vanilla:textures/coarse_dirt"
 path = "textures/coarse_dirt.png"
-sha256 = "987ff1ca053c42902e387319519a84d2b36a30b3bc7a1a455d0d01ad85d986e9"
+sha256 = "e90a59cf0b4a00f3b482e8f79baef2b25c68b0645779135502311510f55463d6"
 
 [[textures]]
 key = "freven.vanilla:textures/dirt"
 path = "textures/dirt.png"
-sha256 = "c5ec7baeccc124115484ca9470d521904c9a1f55c02b5cd9d722917057933a59"
+sha256 = "57e6ba424008dcdc2196b091a2ae62d1d75547dd8dbc45047fc8ec005b289086"
 
 [[textures]]
 key = "freven.vanilla:textures/glass"
 path = "textures/glass.png"
-sha256 = "bdaa6cc27a24689731f416a218715c92d40cbdd6719c2e412d0b92e84357028d"
+sha256 = "25282648df178bc0feae2742a26638580bab16f4317875873148e845e5ff0802"
 
 [[textures]]
 key = "freven.vanilla:textures/granite"
 path = "textures/granite.png"
-sha256 = "0b946646592f4c3b68bd99ffb8fc00d1384e6763b2d9f4317e894754e5842c8f"
+sha256 = "b855e9b6cb7ffe332a620e6e8b69d0b3d80b4c64fcb91525748373c41c5eabbd"
 
 [[textures]]
 key = "freven.vanilla:textures/grass"
 path = "textures/grass.png"
-sha256 = "16446f3d5996ab814950744c88e7c535539d1c794451e3891e5ee1e5bd9531f3"
+sha256 = "b0ecffa9213bb4b8eeee652da1436c7e03897205f8ab71f84d28a3d163d302dd"
 
 [[textures]]
 key = "freven.vanilla:textures/limestone"
 path = "textures/limestone.png"
-sha256 = "8673d81cb9768fa40bb9eb3e580ade49b2b176961cd2a7c503e07ff7f6883723"
+sha256 = "e660b0a9d3e79b2aaa1cec4ee7cc5e30c91e0cfe0a3a36157dfb95096caa355c"
 
 [[textures]]
 key = "freven.vanilla:textures/stone"
 path = "textures/stone.png"
-sha256 = "99ef8e3b5f99e9ca0e4c04dc9a3735fee202982c0dab7f5b97fa237f8d1a84b8"
+sha256 = "31c5fbc38f5f65a9bbcaa0143bf6fd143007a4c0a00a55d04a06062ac8a1fea7"
 
 [[materials]]
 key = "freven.vanilla:block/coarse_dirt"

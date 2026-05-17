@@ -18,7 +18,7 @@ The origin column of the preset contains:
 - flat textured terrain;
 - visible swatches for stone, granite, limestone, dirt, grass, coarse dirt, and glass;
 - a transparent glass wall in front of an opaque marker;
-- large greedy-mesh UV probes for top faces and vertical faces;
+- large greedy-mesh UV probes for top faces and vertical faces, making 32x32 texture scale and tiling obvious;
 - simple face-lighting probes for top/side visual contrast;
 - a small stone alcove/canopy for occlusion and lighting contrast;
 - sparse single-block markers that make material/key drift obvious in screenshots.
@@ -86,7 +86,7 @@ Expected major visual content:
 
 This preset is expected to exercise the current landed Vanilla visual path:
 
-- authored texture files loaded through the visual asset pipeline;
+- authored 32x32 RGBA texture files loaded through the visual asset pipeline;
 - material keys resolved into renderer-internal slots;
 - fallback debug tints staying as fallback instead of the happy path;
 - opaque and transparent render layers;
@@ -110,7 +110,7 @@ they are source-of-truth in the Vanilla/runtime/tooling bridge:
 
 Before an rc10 release, capture at least one screenshot from the scene and check:
 
-- terrain uses authored textures, not only debug colors;
+- terrain uses authored 32x32 textures, not only debug colors;
 - glass is transparent enough to see the marker behind it;
 - opaque stone remains opaque;
 - stone/granite/limestone and grass/dirt/coarse dirt are visually distinguishable;
@@ -126,8 +126,9 @@ This preset is Vanilla/dev/test content. It is not an engine fixture and not a
 runtime save-state format.
 
 Future visual features can extend the scene with more authored Vanilla blocks,
-for example leaves, emissive blocks, framed glass, per-face grass, or colored
-glass, once those features are source-of-truth in the runtime/tooling stack.
+for example leaves, emissive blocks, framed glass, per-face grass, soil/fertility
+variants, or colored glass, once those features are source-of-truth in the
+runtime/tooling stack.
 
 ## Authored visual binding coverage
 
