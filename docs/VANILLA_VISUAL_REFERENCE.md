@@ -78,22 +78,23 @@ should migrate the block-to-material binding out of Rust descriptors and into
 content data without changing the stable public Vanilla block/material/texture
 keys.
 
-## Relationship to follow-up issues
+## Relationship to visual content pack work
 
 This document closes the architectural reference boundary for Vanilla visuals.
 
-It does not attempt to finish all player-visible visual work.
+The first player-visible visual content pack is documented in
+[Vanilla Visual Content Pack v1](VANILLA_VISUAL_CONTENT_PACK_v1.md).
 
-Follow-ups remain separate:
+Remaining follow-ups stay separate:
 
-- Vanilla visual content pack v1: real stone/dirt/grass/glass/soil assets,
-  variants, and richer material setup.
 - Vanilla visual validation scene/preset.
 - Reference visual mod examples.
+- Full canonical block visual files and family expansion once that runtime/tooling
+  path becomes Vanilla source-of-truth.
 
-That separation keeps the rc10 architecture honest: #29 is about moving Vanilla
-visual ownership onto authored content/assets and documenting the boundary,
-while later issues improve the actual art library and validation scenes.
+That separation keeps the rc10 architecture honest: the boundary defines
+ownership, the content pack provides real authored assets, and later issues add
+validation scenes and copyable mod examples.
 
 ## Validation expectations
 
