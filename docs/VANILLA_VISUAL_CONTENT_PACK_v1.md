@@ -233,3 +233,36 @@ Runtime/devkit validation should additionally run content/assets checks before
 release packaging.
 
 For screenshot and regression checks, use [Vanilla Visual Validation Preset](VANILLA_VISUAL_VALIDATION_PRESET.md).
+
+## Modular source layout
+
+Vanilla visual content is authored as a small root `content.manifest` index plus
+explicit semantic source files:
+
+    core_experiences/freven.vanilla/content.manifest
+    core_experiences/freven.vanilla/content/textures/terrain.toml
+    core_experiences/freven.vanilla/content/textures/tint.toml
+    core_experiences/freven.vanilla/content/models/common.toml
+    core_experiences/freven.vanilla/content/blocktypes/coarse_dirt.toml
+    core_experiences/freven.vanilla/content/blocktypes/dirt.toml
+    core_experiences/freven.vanilla/content/blocktypes/grass.toml
+    core_experiences/freven.vanilla/content/blocktypes/glass.toml
+    core_experiences/freven.vanilla/content/families/rock.toml
+    core_experiences/freven.vanilla/content/families/soil_grass.toml
+    core_experiences/freven.vanilla/content/tags/terrain.toml
+
+The root manifest is an explicit deterministic source index. Included files are
+authored content source, not generated cache, runtime ids, renderer slots, or
+filesystem traversal.
+
+Simple block material/visual declarations are grouped by semantic blocktype
+where practical. Reusable models, broad tags, generated families, and texture
+asset declarations remain in shared source files.
+
+Texture `sha256` values remain strict. After intentionally editing texture
+bytes, use:
+
+    freven_boot content-assets update-sha --instance <instance> --experience freven.vanilla --write
+
+This layout is the first-party reference for mods, resource packs, and standalone
+games that outgrow a single manifest.

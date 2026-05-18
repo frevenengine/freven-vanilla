@@ -1,0 +1,50 @@
+schema = 1
+
+[[families]]
+key = "freven.vanilla:families/rock"
+
+[families.family]
+kind = "content_family"
+namespace = "freven.vanilla"
+description = "Vanilla baseline rock family. Generated entries stay semantic content, not renderer/runtime internals."
+
+[[families.axes]]
+name = "rock"
+
+[[families.axes.values]]
+id = "granite"
+display = "Granite"
+fallback_tint_rgba = "8C8580FF"
+rock_group = "igneous"
+
+[[families.axes.values]]
+id = "limestone"
+display = "Limestone"
+fallback_tint_rgba = "C8C2A8FF"
+rock_group = "sedimentary"
+
+[[families.axes.values]]
+id = "stone"
+display = "Stone"
+fallback_tint_rgba = "808080FF"
+rock_group = "generic"
+
+[families.templates.material]
+key = "block/{rock}"
+texture = "textures/{rock}"
+fallback_debug_tint_rgba = "{rock.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[families.templates.visual]
+key = "visuals/block/{rock}"
+target = "{rock}"
+model = "freven.vanilla:models/block/cube_all"
+material = "block/{rock}"
+
+[[families.templates.tags]]
+tag = "freven:stones"
+value = "{rock}"
+
+[[families.templates.tags]]
+tag = "freven:terrain_solids"
+value = "{rock}"

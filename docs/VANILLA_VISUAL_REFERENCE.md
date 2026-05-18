@@ -129,3 +129,15 @@ only first-party content facts:
 No engine code may special-case the words `stone`, `granite`, `limestone`, `dirt`, `grass`, or `glass`.
 The current `BlockDescriptor::solid_material_cube(...)` bridge remains as
 gameplay/fallback data, not as the authored visual happy path.
+
+## Modular content source layout
+
+The Vanilla visual reference is split into explicit semantic manifest source
+files under `core_experiences/freven.vanilla/content/`. The root
+`content.manifest` remains a small deterministic index.
+
+Simple block material/visual declarations are grouped by blocktype where
+practical, while reusable models, textures, generated families, and broad tags
+remain in shared source files. This is source organization only; semantic keys,
+texture hashes, material/model/visual bindings, generated families, and block
+tags should remain stable.

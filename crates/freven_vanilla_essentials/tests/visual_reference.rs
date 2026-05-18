@@ -1,6 +1,21 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const VANILLA_CONTENT_MANIFEST_ROOT: &str = "core_experiences/freven.vanilla/content.manifest";
+
+const VANILLA_CONTENT_MANIFEST_INCLUDES: &[&str] = &[
+    "content/textures/terrain.toml",
+    "content/textures/tint.toml",
+    "content/models/common.toml",
+    "content/blocktypes/coarse_dirt.toml",
+    "content/blocktypes/dirt.toml",
+    "content/blocktypes/grass.toml",
+    "content/blocktypes/glass.toml",
+    "content/families/rock.toml",
+    "content/families/soil_grass.toml",
+    "content/tags/terrain.toml",
+];
+
 const TEXTURES: &[(&str, &str)] = &[
     (
         "freven.vanilla:textures/coarse_dirt",
@@ -97,6 +112,21 @@ fn read_repo_file(path: impl AsRef<Path>) -> String {
     fs::read_to_string(repo_root().join(path)).expect("repo file should be readable")
 }
 
+fn read_vanilla_content_manifest_sources() -> String {
+    let mut text = read_repo_file(VANILLA_CONTENT_MANIFEST_ROOT);
+
+    for include in VANILLA_CONTENT_MANIFEST_INCLUDES {
+        text.push_str("\n\n# included: ");
+        text.push_str(include);
+        text.push('\n');
+        text.push_str(&read_repo_file(PathBuf::from(format!(
+            "core_experiences/freven.vanilla/{include}"
+        ))));
+    }
+
+    text
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PngHeader {
     width: u32,
@@ -122,6 +152,53 @@ fn png_header(bytes: &[u8]) -> Option<PngHeader> {
         bit_depth: bytes[24],
         color_type: bytes[25],
     })
+}
+
+#[test]
+fn vanilla_content_manifest_is_explicit_modular_index() {
+    let root_manifest = read_repo_file(VANILLA_CONTENT_MANIFEST_ROOT);
+
+    assert!(
+        root_manifest.contains("schema = 1"),
+        "root Vanilla content manifest should keep manifest schema"
+    );
+    assert!(
+        root_manifest.contains("entries = []"),
+        "root Vanilla content manifest should preserve empty entry list"
+    );
+    assert!(
+        root_manifest.contains("includes = ["),
+        "root Vanilla content manifest should be an explicit modular source index"
+    );
+
+    for include in VANILLA_CONTENT_MANIFEST_INCLUDES {
+        assert!(
+            root_manifest.contains(&format!("\"{include}\"")),
+            "root Vanilla content manifest should include {include}"
+        );
+
+        let included = read_repo_file(PathBuf::from(format!(
+            "core_experiences/freven.vanilla/{include}"
+        )));
+        assert!(
+            included.contains("schema = 1"),
+            "included Vanilla content source {include} should be a manifest source file"
+        );
+    }
+
+    for forbidden in [
+        "[[textures]]",
+        "[[materials]]",
+        "[[models]]",
+        "[[block_visuals]]",
+        "[[families]]",
+        "[[block_tags]]",
+    ] {
+        assert!(
+            !root_manifest.contains(forbidden),
+            "root Vanilla content manifest should stay a small index, not contain {forbidden}"
+        );
+    }
 }
 
 #[test]
@@ -158,7 +235,7 @@ fn vanilla_showcase_textures_are_32x32_rgba() {
 
 #[test]
 fn vanilla_visual_pack_materials_are_declared_in_content_manifest() {
-    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let manifest = read_vanilla_content_manifest_sources();
 
     for (texture_key, texture_path) in TEXTURES {
         assert!(
@@ -186,7 +263,7 @@ fn vanilla_visual_pack_materials_are_declared_in_content_manifest() {
 
 #[test]
 fn vanilla_rock_family_is_authored_as_generated_content_source() {
-    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let manifest = read_vanilla_content_manifest_sources();
 
     assert!(
         manifest.contains("key = \"freven.vanilla:families/rock\""),
@@ -229,7 +306,7 @@ fn vanilla_rock_family_is_authored_as_generated_content_source() {
 
 #[test]
 fn vanilla_soil_grass_family_is_layered_topsoil_content() {
-    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let manifest = read_vanilla_content_manifest_sources();
     let blocks = read_repo_file("crates/freven_vanilla_essentials/src/blocks.rs");
     let worldgen = read_repo_file("crates/freven_vanilla_essentials/src/lib.rs");
 
@@ -329,7 +406,7 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
 
 #[test]
 fn vanilla_glass_material_is_authored_as_transparent_content() {
-    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let manifest = read_vanilla_content_manifest_sources();
 
     let glass_material = r#"[[materials]]
 key = "freven.vanilla:block/glass"
@@ -345,7 +422,7 @@ render_layer = "transparent""#;
 
 #[test]
 fn vanilla_blocks_have_authored_model_and_visual_bindings() {
-    let manifest = read_repo_file("core_experiences/freven.vanilla/content.manifest");
+    let manifest = read_vanilla_content_manifest_sources();
 
     for model_key in MODELS {
         assert!(

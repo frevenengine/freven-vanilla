@@ -1,0 +1,15 @@
+schema = 1
+
+[[materials]]
+key = "freven.vanilla:block/coarse_dirt"
+texture = "freven.vanilla:textures/coarse_dirt"
+fallback_debug_tint_rgba = 2052735231
+
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/coarse_dirt"
+target = "freven.vanilla:coarse_dirt"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/coarse_dirt"

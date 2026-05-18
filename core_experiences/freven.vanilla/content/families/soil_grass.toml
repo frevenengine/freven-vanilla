@@ -1,0 +1,110 @@
+schema = 1
+
+[[families]]
+key = "freven.vanilla:families/soil_grass"
+
+[families.family]
+kind = "content_family"
+namespace = "freven.vanilla"
+description = "Vanilla TopSoil-style family. Bare variants are plain soil cubes; covered variants add neutral alpha grass overlays with world-sampled tint."
+
+[[families.axes]]
+name = "fertility"
+
+[[families.axes.values]]
+id = "poor"
+display = "Poor"
+fallback_tint_rgba = "5B4632FF"
+
+[[families.axes.values]]
+id = "medium"
+display = "Medium"
+fallback_tint_rgba = "6F4E2DFF"
+
+[[families.axes.values]]
+id = "rich"
+display = "Rich"
+fallback_tint_rgba = "46362AFF"
+
+[[families.axes]]
+name = "coverage"
+
+[[families.axes.values]]
+id = "bare"
+display = "Bare"
+
+[[families.axes.values]]
+id = "sparse"
+display = "Sparse"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"
+
+[[families.axes.values]]
+id = "normal"
+display = "Normal"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"
+[families.templates.material]
+key = "block/soil_{fertility}"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants]]
+coverage = "bare"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_bare"
+target = "soil_{fertility}_bare"
+model = "freven.vanilla:models/block/cube_all"
+material = "block/soil_{fertility}"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_bare"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_bare"
+
+[[families.templates.variants]]
+coverage = "sparse"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_sparse"
+target = "soil_{fertility}_sparse"
+model = "freven.vanilla:models/block/topsoil_overlay"
+
+[families.templates.variants.visual.materials]
+base = "block/soil_{fertility}"
+grass_side = "block/grass_sparse_side"
+grass_top = "block/grass_sparse_top"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_sparse"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_sparse"
+
+[[families.templates.variants]]
+coverage = "normal"
+
+[families.templates.variants.visual]
+key = "visuals/block/soil_{fertility}_normal"
+target = "soil_{fertility}_normal"
+model = "freven.vanilla:models/block/topsoil_overlay"
+
+[families.templates.variants.visual.materials]
+base = "block/soil_{fertility}"
+grass_side = "block/grass_normal_side"
+grass_top = "block/grass_normal_top"
+
+[[families.templates.variants.tags]]
+tag = "freven:soils"
+value = "soil_{fertility}_normal"
+
+[[families.templates.variants.tags]]
+tag = "freven:terrain_solids"
+value = "soil_{fertility}_normal"

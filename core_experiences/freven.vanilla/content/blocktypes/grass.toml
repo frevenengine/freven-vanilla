@@ -1,0 +1,87 @@
+schema = 1
+
+[[materials]]
+key = "freven.vanilla:block/grass"
+texture = "freven.vanilla:textures/grass"
+fallback_debug_tint_rgba = 1067666943
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_bottom"
+texture = "freven.vanilla:textures/dirt"
+fallback_debug_tint_rgba = 1800350463
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_normal_side"
+texture = "freven.vanilla:textures/grass_normal_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 1605584383
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_normal_top"
+texture = "freven.vanilla:textures/grass_normal_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 2044286975
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_side"
+texture = "freven.vanilla:textures/coarse_dirt"
+fallback_debug_tint_rgba = 2052735231
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_side"
+texture = "freven.vanilla:textures/grass_sparse_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 1605584383
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_top"
+texture = "freven.vanilla:textures/grass_sparse_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 2044286975
+
+
+[[materials]]
+key = "freven.vanilla:block/grass_top"
+texture = "freven.vanilla:textures/grass"
+fallback_debug_tint_rgba = 1067666943
+
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/grass"
+target = "freven.vanilla:grass"
+model = "freven.vanilla:models/block/cube_faces"
+
+[block_visuals.materials]
+bottom = "freven.vanilla:block/grass_bottom"
+side = "freven.vanilla:block/grass_side"
+top = "freven.vanilla:block/grass_top"
