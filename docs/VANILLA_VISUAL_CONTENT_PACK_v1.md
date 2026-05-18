@@ -259,6 +259,10 @@ Simple block material/visual declarations are grouped by semantic blocktype
 where practical. Reusable models, broad tags, generated families, and texture
 asset declarations remain in shared source files.
 
+This is still canonical manifest source organized semantically. The future
+Vanilla-owned high-level blocktype/worldproperty profile is documented in
+[Vanilla Blocktype Authoring Schema v1](VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md).
+
 Texture `sha256` values remain strict. After intentionally editing texture
 bytes, use:
 

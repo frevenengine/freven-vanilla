@@ -550,6 +550,46 @@ fn declared_vanilla_texture_assets_exist_and_match_voxel_png_baseline() {
 }
 
 #[test]
+fn vanilla_blocktype_authoring_schema_docs_are_linked() {
+    let readme = read_repo_file("README.md");
+    assert!(
+        readme.contains("docs/VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md"),
+        "README should link the Vanilla blocktype authoring schema"
+    );
+
+    let visual_reference = read_repo_file("docs/VANILLA_VISUAL_REFERENCE.md");
+    assert!(
+        visual_reference.contains("VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md"),
+        "visual reference should point at the Vanilla blocktype authoring profile"
+    );
+
+    let content_pack = read_repo_file("docs/VANILLA_VISUAL_CONTENT_PACK_v1.md");
+    assert!(
+        content_pack.contains("VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md"),
+        "content pack docs should distinguish semantic canonical source from the future high-level profile"
+    );
+
+    let schema = read_repo_file("docs/VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md");
+    for required in [
+        "freven.vanilla:blocktypes_v1",
+        "canonical Freven content graph",
+        "blocktypes/",
+        "worldproperties/",
+        "shapes/",
+        "rock",
+        "soil",
+        "grass",
+        "glass",
+        "renderer/runtime ids",
+    ] {
+        assert!(
+            schema.contains(required),
+            "Vanilla blocktype schema doc should mention {required}"
+        );
+    }
+}
+
+#[test]
 fn vanilla_visual_docs_are_linked() {
     let readme = read_repo_file("README.md");
 
