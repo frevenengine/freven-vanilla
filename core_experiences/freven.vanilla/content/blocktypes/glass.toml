@@ -1,16 +1,9 @@
-schema = 1
-
-[[materials]]
-key = "freven.vanilla:block/glass"
+profile = "freven.vanilla:blocktypes_v1"
+kind = "cube_block"
+code = "glass"
+display = "Glass"
+shape = "freven.vanilla:shapes/block/cube"
 texture = "freven.vanilla:textures/glass"
 fallback_debug_tint_rgba = 2161704908
 render_layer = "transparent"
-
-
-[[block_visuals]]
-key = "freven.vanilla:visuals/block/glass"
-target = "freven.vanilla:glass"
-model = "freven.vanilla:models/block/cube_all"
-
-[block_visuals.materials]
-all = "freven.vanilla:block/glass"
+tags = ["freven:transparent_blocks", "freven:glass"]

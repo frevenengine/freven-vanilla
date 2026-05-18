@@ -1,0 +1,19 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "worldproperty"
+code = "grass_coverage"
+
+[[variants]]
+id = "bare"
+display = "Bare"
+
+[[variants]]
+id = "sparse"
+display = "Sparse"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"
+
+[[variants]]
+id = "normal"
+display = "Normal"
+top_fallback_tint_rgba = "79D957FF"
+side_fallback_tint_rgba = "5FB345FF"

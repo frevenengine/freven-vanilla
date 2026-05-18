@@ -1,0 +1,18 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "worldproperty"
+code = "fertility"
+
+[[variants]]
+id = "poor"
+display = "Poor"
+fallback_tint_rgba = "5B4632FF"
+
+[[variants]]
+id = "medium"
+display = "Medium"
+fallback_tint_rgba = "6F4E2DFF"
+
+[[variants]]
+id = "rich"
+display = "Rich"
+fallback_tint_rgba = "46362AFF"

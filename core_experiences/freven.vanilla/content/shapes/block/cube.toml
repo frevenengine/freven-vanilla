@@ -1,0 +1,35 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "shape"
+code = "block/cube"
+display = "Full cube"
+units = "block_0_1"
+material_slots = ["all"]
+
+[[elements]]
+name = "cube"
+from = [0.0, 0.0, 0.0]
+to = [1.0, 1.0, 1.0]
+
+[elements.faces.north]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.east]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.south]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.west]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.top]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.bottom]
+material = "all"
+uv = [0.0, 0.0, 1.0, 1.0]

@@ -270,3 +270,19 @@ bytes, use:
 
 This layout is the first-party reference for mods, resource packs, and standalone
 games that outgrow a single manifest.
+
+## High-level Vanilla authoring source
+
+Vanilla rc10 now keeps high-level `freven.vanilla:blocktypes_v1` source next to the checked canonical runtime graph.
+
+Author-facing source lives in:
+
+- `core_experiences/freven.vanilla/content/blocktypes/`
+- `core_experiences/freven.vanilla/content/worldproperties/`
+- `core_experiences/freven.vanilla/content/shapes/`
+
+The root `content.manifest` still includes checked canonical graph files under `content/_compiled/vanilla_blocktypes_v1/` so current engine/runtime loading remains deterministic. The high-level files are the Vanilla authoring source; canonical files are the runtime/check boundary until the full production compiler workflow replaces the checked mirror.
+
+## Shape source
+
+`content/shapes/` contains Vanilla-owned data-driven geometry source. Blocktypes reference these shapes by semantic shape id; the compiled mirror translates them into canonical model declarations for the current runtime path.

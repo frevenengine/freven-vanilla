@@ -1,0 +1,33 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "topsoil_family"
+code = "soil"
+display = "Soil"
+shape = "freven.vanilla:shapes/block/topsoil"
+fertility_group = "content/worldproperties/fertility.toml"
+coverage_group = "content/worldproperties/grass_coverage.toml"
+tags = ["freven:soils", "freven:terrain_solids"]
+
+[templates.material]
+key = "block/soil_{fertility}"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[coverage.bare]
+visual = "visuals/block/soil_{fertility}_bare"
+shape = "freven.vanilla:shapes/block/cube"
+material = "block/soil_{fertility}"
+
+[coverage.sparse]
+visual = "visuals/block/soil_{fertility}_sparse"
+shape = "freven.vanilla:shapes/block/topsoil"
+base = "block/soil_{fertility}"
+grass_side = "block/grass_sparse_side"
+grass_top = "block/grass_sparse_top"
+
+[coverage.normal]
+visual = "visuals/block/soil_{fertility}_normal"
+shape = "freven.vanilla:shapes/block/topsoil"
+base = "block/soil_{fertility}"
+grass_side = "block/grass_normal_side"
+grass_top = "block/grass_normal_top"

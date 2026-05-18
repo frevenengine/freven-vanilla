@@ -1,0 +1,19 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "variant_family"
+code = "rock"
+display = "Rock"
+shape = "freven.vanilla:shapes/block/cube"
+variant_group = "content/worldproperties/rock.toml"
+tags = ["freven:stones", "freven:terrain_solids"]
+
+[templates.material]
+key = "block/{rock}"
+texture = "textures/{rock}"
+fallback_debug_tint_rgba = "{rock.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[templates.visual]
+key = "visuals/block/{rock}"
+target = "{rock}"
+shape = "freven.vanilla:shapes/block/cube"
+material = "block/{rock}"
