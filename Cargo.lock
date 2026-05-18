@@ -110,6 +110,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "freven_vanilla_authoring"
+version = "0.1.0"
+
+[[package]]
 name = "freven_vanilla_essentials"
 version = "0.1.0"
 dependencies = [
