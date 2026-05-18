@@ -87,7 +87,7 @@ sha256 = "31c5fbc38f5f65a9bbcaa0143bf6fd143007a4c0a00a55d04a06062ac8a1fea7"
 [[textures]]
 key = "freven.vanilla:textures/tint/grass_tint"
 path = "textures/tint/grass_tint.png"
-sha256 = "2b9f7c313f4ee280034f9df3b6b2bacd3c9eadeba81d1803ba74390e8ae1941e"
+sha256 = "426076a5d655463f8f3a208af330f82a45a69a2193d6f9679c18cfd12a2bc636"
 
 [[materials]]
 key = "freven.vanilla:block/coarse_dirt"
