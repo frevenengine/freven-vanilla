@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["crates/freven_vanilla_essentials"]
+members = [
+    "crates/freven_vanilla_authoring",
+    "crates/freven_vanilla_essentials",
+]
 
 [workspace.package]
 edition = "2024"
