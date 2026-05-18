@@ -1,0 +1,15 @@
+schema = 1
+
+[[materials]]
+key = "freven.vanilla:block/dirt"
+texture = "freven.vanilla:textures/dirt"
+fallback_debug_tint_rgba = 1800350463
+
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/dirt"
+target = "freven.vanilla:dirt"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/dirt"

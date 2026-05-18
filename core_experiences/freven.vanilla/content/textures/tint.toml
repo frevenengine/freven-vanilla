@@ -1,0 +1,6 @@
+schema = 1
+
+[[textures]]
+key = "freven.vanilla:textures/tint/grass_tint"
+path = "textures/tint/grass_tint.png"
+sha256 = "426076a5d655463f8f3a208af330f82a45a69a2193d6f9679c18cfd12a2bc636"
