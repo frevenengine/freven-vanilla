@@ -188,49 +188,34 @@ material = "base"
 material = "base"
 
 [[models.parts]]
-name = "grass_east"
-from = [1.0, 0.0, 0.0]
-to = [1.001, 1.0, 1.0]
+name = "grass_overlay"
+from = [0.0, 0.0, 0.0]
+to = [1.0, 1.0, 1.0]
 
 [models.parts.faces.east]
 material = "grass_side"
 cull = false
-
-[[models.parts]]
-name = "grass_north"
-from = [0.0, 0.0, -0.001]
-to = [1.0, 1.0, 0.0]
+overlay = true
 
 [models.parts.faces.north]
 material = "grass_side"
 cull = false
-
-[[models.parts]]
-name = "grass_south"
-from = [0.0, 0.0, 1.0]
-to = [1.0, 1.0, 1.001]
+overlay = true
 
 [models.parts.faces.south]
 material = "grass_side"
 cull = false
-
-[[models.parts]]
-name = "grass_top"
-from = [0.0, 1.0, 0.0]
-to = [1.0, 1.001, 1.0]
+overlay = true
 
 [models.parts.faces.top]
 material = "grass_top"
 cull = false
-
-[[models.parts]]
-name = "grass_west"
-from = [-0.001, 0.0, 0.0]
-to = [0.0, 1.0, 1.0]
+overlay = true
 
 [models.parts.faces.west]
 material = "grass_side"
 cull = false
+overlay = true
 
 [[block_visuals]]
 key = "freven.vanilla:visuals/block/coarse_dirt"
