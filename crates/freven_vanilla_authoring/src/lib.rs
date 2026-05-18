@@ -11,6 +11,11 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
+pub mod source_tree;
+pub use source_tree::{
+    GeneratedFile, VANILLA_BLOCKTYPES_COMPILED_DIR, compile_source_tree, write_compiled_output,
+};
+
 pub const VANILLA_BLOCKTYPES_PROFILE_V1: &str = "freven.vanilla:blocktypes_v1";
 pub const CANONICAL_MANIFEST_SCHEMA: u32 = 1;
 
@@ -33,21 +38,21 @@ impl AuthoringSourceKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AuthoringSourceRef {
-    pub file: &'static str,
+    pub file: String,
     pub kind: AuthoringSourceKind,
-    pub field_path: &'static str,
+    pub field_path: String,
 }
 
 impl AuthoringSourceRef {
-    pub const fn new(
-        file: &'static str,
+    pub fn new(
+        file: impl Into<String>,
         kind: AuthoringSourceKind,
-        field_path: &'static str,
+        field_path: impl Into<String>,
     ) -> Self {
         Self {
-            file,
+            file: file.into(),
             kind,
-            field_path,
+            field_path: field_path.into(),
         }
     }
 }
@@ -86,6 +91,7 @@ pub struct CompiledVanillaProfile {
     pub canonical_schema: u32,
     pub declarations: Vec<GeneratedDeclaration>,
     pub canonical_manifest_source: String,
+    pub generated_files: Vec<GeneratedFile>,
 }
 
 impl CompiledVanillaProfile {
@@ -114,8 +120,8 @@ pub enum VanillaAuthoringError {
     DuplicateGeneratedDeclaration {
         kind: GeneratedDeclarationKind,
         key: String,
-        first_source: AuthoringSourceRef,
-        second_source: AuthoringSourceRef,
+        first_source: Box<AuthoringSourceRef>,
+        second_source: Box<AuthoringSourceRef>,
     },
 }
 
@@ -283,7 +289,11 @@ pub fn compile_fixture_set(
         profile_id: VANILLA_BLOCKTYPES_PROFILE_V1,
         canonical_schema: CANONICAL_MANIFEST_SCHEMA,
         declarations: compiler.declarations,
-        canonical_manifest_source: compiler.manifest,
+        canonical_manifest_source: compiler.manifest.clone(),
+        generated_files: vec![GeneratedFile {
+            relative_path: "generated.content.manifest".to_string(),
+            contents: compiler.manifest,
+        }],
     })
 }
 
@@ -314,8 +324,8 @@ impl CompilerState {
             return Err(VanillaAuthoringError::DuplicateGeneratedDeclaration {
                 kind,
                 key,
-                first_source: first_source.clone(),
-                second_source: source,
+                first_source: Box::new(first_source.clone()),
+                second_source: Box::new(source),
             });
         }
 

@@ -1,4 +1,54 @@
 schema = 1
+# generated_from_profile = "freven.vanilla:blocktypes_v1"
+# generated output is canonical content graph, not authoring source
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_side"
+texture = "freven.vanilla:textures/grass_sparse_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 1605584383
+
+[[materials]]
+key = "freven.vanilla:block/grass_sparse_top"
+texture = "freven.vanilla:textures/grass_sparse_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 2044286975
+
+[[materials]]
+key = "freven.vanilla:block/grass_normal_side"
+texture = "freven.vanilla:textures/grass_normal_side"
+fallback_debug_tint_rgba = 1605584383
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 1605584383
+
+[[materials]]
+key = "freven.vanilla:block/grass_normal_top"
+texture = "freven.vanilla:textures/grass_normal_top"
+fallback_debug_tint_rgba = 2044286975
+render_layer = "cutout"
+alpha_cutoff_u8 = 96
+
+[materials.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+fallback_tint_rgba = 2044286975
 
 [[families]]
 key = "freven.vanilla:families/soil_grass"
@@ -6,7 +56,7 @@ key = "freven.vanilla:families/soil_grass"
 [families.family]
 kind = "content_family"
 namespace = "freven.vanilla"
-description = "Vanilla TopSoil-style family. Bare variants are plain soil cubes; covered variants add neutral alpha grass overlays with world-sampled tint."
+description = "Generated from freven.vanilla:blocktypes_v1 soil blocktype and worldproperty source."
 
 [[families.axes]]
 name = "fertility"
@@ -44,6 +94,7 @@ id = "normal"
 display = "Normal"
 top_fallback_tint_rgba = "79D957FF"
 side_fallback_tint_rgba = "5FB345FF"
+
 [families.templates.material]
 key = "block/soil_{fertility}"
 texture = "textures/soil_{fertility}"
@@ -58,6 +109,7 @@ key = "visuals/block/soil_{fertility}_bare"
 target = "soil_{fertility}_bare"
 model = "freven.vanilla:models/block/cube_all"
 material = "block/soil_{fertility}"
+
 
 [[families.templates.variants.tags]]
 tag = "freven:soils"
@@ -80,6 +132,7 @@ base = "block/soil_{fertility}"
 grass_side = "block/grass_sparse_side"
 grass_top = "block/grass_sparse_top"
 
+
 [[families.templates.variants.tags]]
 tag = "freven:soils"
 value = "soil_{fertility}_sparse"
@@ -100,6 +153,7 @@ model = "freven.vanilla:models/block/topsoil_overlay"
 base = "block/soil_{fertility}"
 grass_side = "block/grass_normal_side"
 grass_top = "block/grass_normal_top"
+
 
 [[families.templates.variants.tags]]
 tag = "freven:soils"

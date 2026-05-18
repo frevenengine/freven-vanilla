@@ -17,3 +17,6 @@ freven_block_guest.workspace = true
 freven_volumetric_sdk_types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+freven_vanilla_authoring = { path = "../freven_vanilla_authoring" }

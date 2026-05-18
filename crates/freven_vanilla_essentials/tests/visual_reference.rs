@@ -6,14 +6,29 @@ const VANILLA_CONTENT_MANIFEST_ROOT: &str = "core_experiences/freven.vanilla/con
 const VANILLA_CONTENT_MANIFEST_INCLUDES: &[&str] = &[
     "content/textures/terrain.toml",
     "content/textures/tint.toml",
-    "content/models/common.toml",
+    "content/_compiled/vanilla_blocktypes_v1/models/common.toml",
+    "content/_compiled/vanilla_blocktypes_v1/blocktypes/coarse_dirt.toml",
+    "content/_compiled/vanilla_blocktypes_v1/blocktypes/dirt.toml",
+    "content/_compiled/vanilla_blocktypes_v1/blocktypes/grass.toml",
+    "content/_compiled/vanilla_blocktypes_v1/blocktypes/glass.toml",
+    "content/_compiled/vanilla_blocktypes_v1/families/rock.toml",
+    "content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+    "content/_compiled/vanilla_blocktypes_v1/tags/terrain.toml",
+];
+
+const VANILLA_HIGH_LEVEL_AUTHORING_SOURCES: &[&str] = &[
     "content/blocktypes/coarse_dirt.toml",
     "content/blocktypes/dirt.toml",
     "content/blocktypes/grass.toml",
     "content/blocktypes/glass.toml",
-    "content/families/rock.toml",
-    "content/families/soil_grass.toml",
-    "content/tags/terrain.toml",
+    "content/blocktypes/rock.toml",
+    "content/blocktypes/soil.toml",
+    "content/worldproperties/rock.toml",
+    "content/worldproperties/fertility.toml",
+    "content/worldproperties/grass_coverage.toml",
+    "content/shapes/block/cube.toml",
+    "content/shapes/block/cube_faces.toml",
+    "content/shapes/block/topsoil.toml",
 ];
 
 const TEXTURES: &[(&str, &str)] = &[
@@ -72,19 +87,6 @@ const MATERIALS: &[&str] = &[
     "freven.vanilla:block/grass_bottom",
     "freven.vanilla:block/grass_side",
     "freven.vanilla:block/grass_top",
-];
-
-const MODELS: &[&str] = &[
-    "freven.vanilla:models/block/cube_all",
-    "freven.vanilla:models/block/cube_faces",
-    "freven.vanilla:models/block/topsoil_overlay",
-];
-
-const BLOCK_VISUALS: &[&str] = &[
-    "freven.vanilla:visuals/block/coarse_dirt",
-    "freven.vanilla:visuals/block/dirt",
-    "freven.vanilla:visuals/block/glass",
-    "freven.vanilla:visuals/block/grass",
 ];
 
 const BLOCK_DESCRIPTOR_MATERIALS: &[&str] = &[
@@ -421,63 +423,55 @@ render_layer = "transparent""#;
 }
 
 #[test]
+
 fn vanilla_blocks_have_authored_model_and_visual_bindings() {
-    let manifest = read_vanilla_content_manifest_sources();
-
-    for model_key in MODELS {
-        assert!(
-            manifest.contains(&format!("key = \"{model_key}\"")),
-            "missing Vanilla model key {model_key}"
-        );
-    }
-
-    for visual_key in BLOCK_VISUALS {
-        assert!(
-            manifest.contains(&format!("key = \"{visual_key}\"")),
-            "missing Vanilla block visual key {visual_key}"
-        );
-    }
-
-    assert!(
-        manifest.contains("kind = \"cube_all\""),
-        "Vanilla should author reusable cube_all model bindings"
-    );
-    assert!(
-        manifest.contains("kind = \"cube_faces\""),
-        "Vanilla should author reusable cube_faces model bindings"
-    );
-    assert!(
-        manifest.contains("kind = \"cuboid_parts\""),
-        "Vanilla should author reusable cuboid_parts model bindings for layered TopSoil visuals"
+    let models = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/models/common.toml",
     );
 
     assert!(
-        manifest.contains("key = \"freven.vanilla:families/rock\"")
-            && manifest.contains("key = \"visuals/block/{rock}\"")
-            && manifest.contains("model = \"freven.vanilla:models/block/cube_all\""),
-        "rock visuals should be generated from the Vanilla rock family"
+        models.contains("key = \"freven.vanilla:models/block/cube_all\""),
+        "Vanilla should keep the stable cube_all model key"
+    );
+    assert!(
+        models.contains("key = \"freven.vanilla:models/block/cube_faces\""),
+        "Vanilla should keep the stable cube_faces model key"
+    );
+    assert!(
+        models.contains("key = \"freven.vanilla:models/block/topsoil_overlay\""),
+        "Vanilla should keep the stable topsoil_overlay model key"
+    );
+    assert!(
+        models.contains("kind = \"cuboid_parts\""),
+        "Vanilla model keys should now be backed by data-driven cuboid part geometry"
+    );
+    assert!(
+        models.contains("[[models.parts]]"),
+        "Vanilla shape source should compile into authored model parts"
     );
 
-    let grass_visual = r#"[[block_visuals]]
-key = "freven.vanilla:visuals/block/grass"
-target = "freven.vanilla:grass"
-model = "freven.vanilla:models/block/cube_faces"
-
-[block_visuals.materials]
-bottom = "freven.vanilla:block/grass_bottom"
-side = "freven.vanilla:block/grass_side"
-top = "freven.vanilla:block/grass_top""#;
-
+    let grass = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/blocktypes/grass.toml",
+    );
     assert!(
-        manifest.contains(grass_visual),
-        "grass should use authored per-face top/side/bottom material slots"
+        grass.contains("model = \"freven.vanilla:models/block/cube_faces\""),
+        "Grass should bind to the cube_faces model key"
     );
 
+    let dirt = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/blocktypes/dirt.toml",
+    );
     assert!(
-        manifest.contains("texture = \"freven.vanilla:textures/dirt\"")
-            && manifest.contains("texture = \"freven.vanilla:textures/coarse_dirt\"")
-            && manifest.contains("texture = \"freven.vanilla:textures/grass\""),
-        "grass face materials should resolve to visible top/side/bottom textures"
+        dirt.contains("model = \"freven.vanilla:models/block/cube_all\""),
+        "Dirt should bind to the cube_all model key"
+    );
+
+    let soil = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+    );
+    assert!(
+        soil.contains("model = \"freven.vanilla:models/block/topsoil_overlay\""),
+        "Soil grass variants should bind to the topsoil_overlay model key"
     );
 }
 
@@ -679,4 +673,204 @@ fn vanilla_does_not_override_engine_owned_voxel_shader() {
         !shader_override.exists(),
         "Vanilla must not override the engine-owned voxel renderer shader ABI"
     );
+}
+
+#[test]
+fn vanilla_high_level_blocktype_source_exists_and_is_not_canonical_registry_source() {
+    for rel in VANILLA_HIGH_LEVEL_AUTHORING_SOURCES {
+        let text = read_repo_file(format!("core_experiences/freven.vanilla/{rel}"));
+        assert!(
+            text.contains("profile = \"freven.vanilla:blocktypes_v1\""),
+            "{rel} must declare the Vanilla authoring profile"
+        );
+        assert!(
+            !text.contains("[[materials]]")
+                && !text.contains("[[block_visuals]]")
+                && !text.contains("[[families]]"),
+            "{rel} should be high-level authoring source, not canonical registry source"
+        );
+        assert!(
+            !text.contains("renderer") && !text.contains("runtime_id") && !text.contains("atlas"),
+            "{rel} must not expose renderer/runtime internals"
+        );
+    }
+}
+
+#[test]
+fn vanilla_runtime_manifest_uses_checked_canonical_output_not_high_level_source_directly() {
+    let manifest = read_repo_file(VANILLA_CONTENT_MANIFEST_ROOT);
+
+    for rel in VANILLA_CONTENT_MANIFEST_INCLUDES {
+        assert!(
+            manifest.contains(rel),
+            "root manifest should include checked canonical runtime source {rel}"
+        );
+    }
+
+    for rel in VANILLA_HIGH_LEVEL_AUTHORING_SOURCES {
+        assert!(
+            !manifest.contains(rel),
+            "root manifest must not feed high-level profile source directly to the canonical loader: {rel}"
+        );
+    }
+
+    assert!(manifest.contains("content/_compiled/vanilla_blocktypes_v1/blocktypes/grass.toml"));
+    assert!(manifest.contains("content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml"));
+}
+
+#[test]
+fn vanilla_high_level_source_matches_authoring_compiler_fixture_provenance() {
+    let compiled = freven_vanilla_authoring::compile_fixture_set(
+        &freven_vanilla_authoring::fixtures::rc10_visual_fixture_set(),
+    )
+    .expect("Vanilla authoring fixture compiles");
+
+    for declaration in &compiled.declarations {
+        let rel = declaration.source.file.as_str();
+        let source = read_repo_file(format!("core_experiences/freven.vanilla/{rel}"));
+        assert!(
+            source.contains("profile = \"freven.vanilla:blocktypes_v1\""),
+            "compiler provenance source should exist in production high-level source layout and declare the Vanilla profile: {rel}"
+        );
+    }
+}
+
+#[test]
+fn vanilla_high_level_generated_keys_are_represented_in_checked_canonical_runtime_source() {
+    let compiled = freven_vanilla_authoring::compile_fixture_set(
+        &freven_vanilla_authoring::fixtures::rc10_visual_fixture_set(),
+    )
+    .expect("Vanilla authoring fixture compiles");
+
+    let canonical_sources = [
+        "content/_compiled/vanilla_blocktypes_v1/models/common.toml",
+        "content/_compiled/vanilla_blocktypes_v1/blocktypes/coarse_dirt.toml",
+        "content/_compiled/vanilla_blocktypes_v1/blocktypes/dirt.toml",
+        "content/_compiled/vanilla_blocktypes_v1/blocktypes/grass.toml",
+        "content/_compiled/vanilla_blocktypes_v1/blocktypes/glass.toml",
+        "content/_compiled/vanilla_blocktypes_v1/families/rock.toml",
+        "content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+        "content/_compiled/vanilla_blocktypes_v1/tags/terrain.toml",
+    ]
+    .into_iter()
+    .map(|rel| read_repo_file(format!("core_experiences/freven.vanilla/{rel}")))
+    .collect::<Vec<_>>()
+    .join("\n");
+
+    for declaration in &compiled.declarations {
+        assert!(
+            canonical_sources.contains(&declaration.key),
+            "generated key should be represented in checked canonical runtime source: {}",
+            declaration.key
+        );
+    }
+}
+
+#[test]
+fn vanilla_compiled_canonical_mirror_has_do_not_edit_readme() {
+    let readme = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/README.md",
+    );
+    assert!(readme.contains("Do not edit these files by hand"));
+    assert!(readme.contains("content/blocktypes/"));
+    assert!(readme.contains("content/worldproperties/"));
+    assert!(readme.contains("content/shapes/"));
+    assert!(readme.contains("engine/runtime consumes this canonical graph today"));
+}
+
+#[test]
+fn vanilla_high_level_shapes_are_data_driven_geometry_source() {
+    let cube = read_repo_file("core_experiences/freven.vanilla/content/shapes/block/cube.toml");
+    let cube_faces =
+        read_repo_file("core_experiences/freven.vanilla/content/shapes/block/cube_faces.toml");
+    let topsoil =
+        read_repo_file("core_experiences/freven.vanilla/content/shapes/block/topsoil.toml");
+
+    for (name, source) in [
+        ("cube", cube.as_str()),
+        ("cube_faces", cube_faces.as_str()),
+        ("topsoil", topsoil.as_str()),
+    ] {
+        assert!(
+            source.contains("kind = \"shape\""),
+            "{name} should be a Vanilla shape source file"
+        );
+        assert!(
+            source.contains("material_slots = "),
+            "{name} should declare author-facing material slots"
+        );
+        assert!(
+            source.contains("[[elements]]"),
+            "{name} should declare data-driven elements"
+        );
+        assert!(
+            source.contains("[elements.faces."),
+            "{name} should declare face bindings"
+        );
+        assert!(
+            !source.contains("canonical_model") && !source.contains("geometry = \"cube"),
+            "{name} must not be a thin alias to a canonical/runtime model"
+        );
+    }
+
+    assert!(cube_faces.contains("material_slots = [\"bottom\", \"side\", \"top\"]"));
+    assert!(topsoil.contains("overlay = true"));
+    assert!(topsoil.contains("cull = false"));
+}
+
+#[test]
+fn vanilla_compiled_output_matches_high_level_source_tree() {
+    let content_root = repo_root().join("core_experiences/freven.vanilla/content");
+    let compiled_root = content_root.join("_compiled/vanilla_blocktypes_v1");
+
+    let compiled = freven_vanilla_authoring::compile_source_tree(&content_root)
+        .expect("high-level Vanilla blocktype source should compile");
+
+    for generated in &compiled.generated_files {
+        let actual_path = compiled_root.join(&generated.relative_path);
+        let actual = std::fs::read_to_string(&actual_path).unwrap_or_else(|err| {
+            panic!(
+                "failed to read generated mirror {}: {err}",
+                actual_path.display()
+            )
+        });
+
+        assert_eq!(
+            normalize_newlines(&actual),
+            normalize_newlines(&generated.contents),
+            "checked compiled mirror is stale for {}; run: cargo +stable run -p freven_vanilla_authoring --example compile_vanilla_blocktypes -- core_experiences/freven.vanilla/content core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1",
+            generated.relative_path
+        );
+    }
+}
+
+#[test]
+fn vanilla_shape_geometry_source_flows_into_compiled_model_output() {
+    let content_root = repo_root().join("core_experiences/freven.vanilla/content");
+    let shape = read_repo_file("core_experiences/freven.vanilla/content/shapes/block/cube.toml");
+
+    let expected_to_line = shape
+        .lines()
+        .find(|line| line.trim_start().starts_with("to = "))
+        .expect("cube shape should have a to = [...] line")
+        .trim()
+        .to_string();
+
+    let compiled = freven_vanilla_authoring::compile_source_tree(&content_root)
+        .expect("high-level Vanilla blocktype source should compile");
+
+    let models = compiled
+        .generated_files
+        .iter()
+        .find(|file| file.relative_path == "models/common.toml")
+        .expect("compiled output should include models/common.toml");
+
+    assert!(
+        models.contents.contains(&expected_to_line),
+        "compiled model output must contain cube shape geometry from content/shapes/block/cube.toml; missing line: {expected_to_line}"
+    );
+}
+
+fn normalize_newlines(text: &str) -> String {
+    text.replace("\r\n", "\n").trim_end().to_string()
 }

@@ -1,19 +1,18 @@
 schema = 1
+# generated_from_profile = "freven.vanilla:blocktypes_v1"
+# generated output is canonical content graph, not authoring source
 
 [[block_tags]]
 key = "freven:glass"
 blocks = ["freven.vanilla:glass"]
 
-
 [[block_tags]]
 key = "freven:soils"
 blocks = ["freven.vanilla:coarse_dirt", "freven.vanilla:dirt", "freven.vanilla:grass"]
 
-
 [[block_tags]]
 key = "freven:terrain_solids"
 blocks = ["freven.vanilla:coarse_dirt", "freven.vanilla:dirt", "freven.vanilla:grass"]
-
 
 [[block_tags]]
 key = "freven:transparent_blocks"

@@ -399,3 +399,15 @@ Expected follow-ups:
   blocktype source files;
 - add DevKit docs/templates for Vanilla mod authors;
 - add diagnostics for duplicate generated keys and unsupported reserved fields.
+
+## rc10 production source layout
+
+The rc10 Vanilla content package now includes production high-level source examples under `content/blocktypes/`, `content/worldproperties/`, and `content/shapes/`.
+
+The checked canonical runtime graph lives under `content/_compiled/vanilla_blocktypes_v1/` and is still what `content.manifest` includes. That keeps the current engine path stable while making the Vanilla-owned source-of-truth layout visible to authors and mods.
+
+## Shape source
+
+Vanilla shape files are real authoring source, not aliases to engine runtime models.
+
+A shape declares material slots, elements, face bindings, UVs, overlay/culling hints, and other profile-owned geometry metadata. The Vanilla compiler translates that source into the canonical model declarations consumed by the engine.

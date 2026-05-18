@@ -1,0 +1,18 @@
+schema = 1
+# generated_from_profile = "freven.vanilla:blocktypes_v1"
+# generated output is canonical content graph, not authoring source
+
+[[materials]]
+key = "freven.vanilla:block/glass"
+texture = "freven.vanilla:textures/glass"
+fallback_debug_tint_rgba = 2161704908
+render_layer = "transparent"
+
+
+[[block_visuals]]
+key = "freven.vanilla:visuals/block/glass"
+target = "freven.vanilla:glass"
+model = "freven.vanilla:models/block/cube_all"
+
+[block_visuals.materials]
+all = "freven.vanilla:block/glass"

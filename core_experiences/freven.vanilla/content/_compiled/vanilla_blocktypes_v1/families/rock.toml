@@ -1,4 +1,6 @@
 schema = 1
+# generated_from_profile = "freven.vanilla:blocktypes_v1"
+# generated output is canonical content graph, not authoring source
 
 [[families]]
 key = "freven.vanilla:families/rock"
@@ -6,7 +8,7 @@ key = "freven.vanilla:families/rock"
 [families.family]
 kind = "content_family"
 namespace = "freven.vanilla"
-description = "Vanilla baseline rock family. Generated entries stay semantic content, not renderer/runtime internals."
+description = "Generated from freven.vanilla:blocktypes_v1 rock blocktype source."
 
 [[families.axes]]
 name = "rock"

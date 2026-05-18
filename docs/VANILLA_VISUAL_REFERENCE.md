@@ -146,3 +146,11 @@ The future high-level Vanilla-owned authoring profile is documented in
 [Vanilla Blocktype Authoring Schema v1](VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md).
 That profile is allowed to be Vintage-Story-like for Vanilla modding, while the
 engine still consumes the generic canonical Freven content graph.
+
+## High-level source boundary
+
+Vanilla visual examples now have `freven.vanilla:blocktypes_v1` source files for blocktypes, worldproperties, and shapes. Runtime validation still consumes the checked canonical graph through `content.manifest`, preserving existing semantic keys and the visual validation fingerprint while making the intended modding source easier to inspect.
+
+## Shape source
+
+Vanilla blocktype examples reference real data-driven shape source files under `content/shapes/`. These files declare material slots, elements, and faces instead of aliasing directly to renderer/runtime model ids.

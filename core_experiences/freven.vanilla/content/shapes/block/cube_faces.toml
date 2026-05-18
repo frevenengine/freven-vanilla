@@ -1,0 +1,35 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "shape"
+code = "block/cube_faces"
+display = "Cube with bottom/side/top material slots"
+units = "block_0_1"
+material_slots = ["bottom", "side", "top"]
+
+[[elements]]
+name = "cube"
+from = [0.0, 0.0, 0.0]
+to = [1.0, 1.0, 1.0]
+
+[elements.faces.north]
+material = "side"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.east]
+material = "side"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.south]
+material = "side"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.west]
+material = "side"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.top]
+material = "top"
+uv = [0.0, 0.0, 1.0, 1.0]
+
+[elements.faces.bottom]
+material = "bottom"
+uv = [0.0, 0.0, 1.0, 1.0]
