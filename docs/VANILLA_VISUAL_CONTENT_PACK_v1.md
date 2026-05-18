@@ -94,6 +94,10 @@ variants bind one soil material to `cube_all`, while sparse/normal variants bind
 soil base plus neutral alpha grass top/side overlays to
 `freven.vanilla:models/block/topsoil_overlay`.
 
+The TopSoil overlay model uses first-class `overlay = true` face metadata for
+grass top/side faces instead of authored geometry offsets such as `-0.001` or
+`1.001`.
+
 Grass overlay materials declare:
 
 ~~~toml

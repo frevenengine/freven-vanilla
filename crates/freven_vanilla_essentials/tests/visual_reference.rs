@@ -268,6 +268,14 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
     );
 
     assert!(
+        manifest.contains("name = \"grass_overlay\"")
+            && manifest.contains("overlay = true")
+            && !manifest.contains("1.001")
+            && !manifest.contains("-0.001"),
+        "TopSoil grass overlay faces should use first-class overlay metadata, not authored geometry offsets"
+    );
+
+    assert!(
         manifest.contains("[[families.templates.variants]]")
             && manifest.contains("coverage = \"bare\"")
             && manifest.contains("model = \"freven.vanilla:models/block/cube_all\"")
