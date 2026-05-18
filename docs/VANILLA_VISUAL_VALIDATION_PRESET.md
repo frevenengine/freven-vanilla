@@ -80,7 +80,7 @@ Expected major visual content:
 - `freven.vanilla:soil_medium_sparse`
 - `freven.vanilla:soil_medium_normal`
 - `freven.vanilla:soil_rich_normal`
-- `freven.core:tint/world_gradient_v1`
+- `freven.core:tint/color_map_2d_v1`
 - `freven.vanilla:textures/stone`
 - `freven.vanilla:textures/granite`
 - `freven.vanilla:textures/limestone`
@@ -101,7 +101,7 @@ This preset is expected to exercise the current landed Vanilla visual path:
 - greedy-meshed large faces with tiled texture UVs;
 - simple client-side face-lighting/tint attributes;
 - generated soil/grass fertility/coverage variants;
-- cutout grass overlay materials using `freven.core:tint/world_gradient_v1`.
+- cutout grass overlay materials using `freven.core:tint/color_map_2d_v1` with `freven.vanilla:textures/tint/grass_tint`.
 
 ## Not covered by this preset yet
 
@@ -156,4 +156,4 @@ The validation scene includes a TopSoil family patch. It lays out fertility rows
 (`poor`, `medium`, `rich`) against grass coverage columns (`bare`, `sparse`,
 `normal`). Bare variants are plain soil cubes. Sparse and normal variants use
 neutral alpha grass top/side overlays in the `cutout` render layer and request
-`freven.core:tint/world_gradient_v1` for world-sampled grass color.
+`freven.core:tint/color_map_2d_v1` with `freven.vanilla:textures/tint/grass_tint` for image-backed grass color.

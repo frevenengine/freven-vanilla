@@ -42,6 +42,10 @@ const TEXTURES: &[(&str, &str)] = &[
         "freven.vanilla:textures/soil_rich",
         "textures/soil_rich.png",
     ),
+    (
+        "freven.vanilla:textures/tint/grass_tint",
+        "textures/tint/grass_tint.png",
+    ),
     ("freven.vanilla:textures/stone", "textures/stone.png"),
 ];
 
@@ -295,8 +299,9 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
     assert!(
         manifest.contains("render_layer = \"cutout\"")
             && manifest.contains("alpha_cutoff_u8 = 96")
-            && manifest.contains("source = \"freven.core:tint/world_gradient_v1\""),
-        "grass overlay materials should be cutout and request world-sampled tint"
+            && manifest.contains("source = \"freven.core:tint/color_map_2d_v1\"")
+            && manifest.contains("color_map_texture = \"freven.vanilla:textures/tint/grass_tint\""),
+        "grass overlay materials should be cutout and request image-backed grass tint"
     );
 
     for variant in [
@@ -543,7 +548,7 @@ fn visual_validation_docs_are_linked() {
         "preset docs should call out the layered soil/grass showcase"
     );
     assert!(
-        preset.contains("freven.core:tint/world_gradient_v1"),
+        preset.contains("freven.core:tint/color_map_2d_v1"),
         "preset docs should call out the world-sampled tint source"
     );
 }

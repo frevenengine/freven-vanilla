@@ -20,7 +20,7 @@ The v1 pack includes these Vanilla block visuals:
 | `freven.vanilla:coarse_dirt` | `freven.vanilla:visuals/block/coarse_dirt` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/coarse_dirt` | First soil-style variant. |
 | `freven.vanilla:grass` | `freven.vanilla:visuals/block/grass` | `freven.vanilla:models/block/cube_faces` | `top`, `side`, `bottom` | Legacy per-face authored grass sample. |
 | `freven.vanilla:soil_{fertility}_bare` | `freven.vanilla:visuals/block/soil_{fertility}_bare` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/soil_{fertility}` | Generated bare soil cube variants. |
-| `freven.vanilla:soil_{fertility}_{sparse,normal}` | `freven.vanilla:visuals/block/soil_{fertility}_{sparse,normal}` | `freven.vanilla:models/block/topsoil_overlay` | `base`, `grass_top`, `grass_side` | Generated TopSoil-style variants with neutral cutout grass overlays and world-sampled tint. |
+| `freven.vanilla:soil_{fertility}_{sparse,normal}` | `freven.vanilla:visuals/block/soil_{fertility}_{sparse,normal}` | `freven.vanilla:models/block/topsoil_overlay` | `base`, `grass_top`, `grass_side` | Generated TopSoil-style variants with neutral cutout grass overlays and image-backed grass tint. |
 | `freven.vanilla:glass` | `freven.vanilla:visuals/block/glass` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/glass` | Solid collision, non-opaque visibility, transparent render layer. |
 
 ## Texture policy
@@ -46,6 +46,7 @@ grass_sparse_top.png
 grass_sparse_side.png
 grass_normal_top.png
 grass_normal_side.png
+textures/tint/grass_tint.png
 ~~~
 
 It does not generate precomposed `soil_{fertility}_{coverage}_top/side` textures.
@@ -105,7 +106,8 @@ render_layer = "cutout"
 alpha_cutoff_u8 = 96
 
 [...tint]
-source = "freven.core:tint/world_gradient_v1"
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "freven.vanilla:textures/tint/grass_tint"
 ~~~
 
 That tint source is generic engine visual metadata, not a Vanilla grass hardcode.
