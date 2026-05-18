@@ -37,4 +37,5 @@ See [Vanilla Visual Reference](docs/VANILLA_VISUAL_REFERENCE.md) for the ownersh
 rules, current bridge status, validation expectations, and follow-up boundaries.
 
 The first player-visible visual pack is documented in [Vanilla Visual Content Pack v1](docs/VANILLA_VISUAL_CONTENT_PACK_v1.md).
+The future Vanilla-owned blocktype/worldproperty authoring profile is documented in [Vanilla Blocktype Authoring Schema v1](docs/VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md).
 The rc10 screenshot/regression scene is documented in [Vanilla Visual Validation Preset](docs/VANILLA_VISUAL_VALIDATION_PRESET.md).

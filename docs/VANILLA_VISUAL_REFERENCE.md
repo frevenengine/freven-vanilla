@@ -141,3 +141,8 @@ practical, while reusable models, textures, generated families, and broad tags
 remain in shared source files. This is source organization only; semantic keys,
 texture hashes, material/model/visual bindings, generated families, and block
 tags should remain stable.
+
+The future high-level Vanilla-owned authoring profile is documented in
+[Vanilla Blocktype Authoring Schema v1](VANILLA_BLOCKTYPE_AUTHORING_SCHEMA_v1.md).
+That profile is allowed to be Vintage-Story-like for Vanilla modding, while the
+engine still consumes the generic canonical Freven content graph.
