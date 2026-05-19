@@ -411,3 +411,36 @@ The checked canonical runtime graph lives under `content/_compiled/vanilla_block
 Vanilla shape files are real authoring source, not aliases to engine runtime models.
 
 A shape declares material slots, elements, face bindings, UVs, overlay/culling hints, and other profile-owned geometry metadata. The Vanilla compiler translates that source into the canonical model declarations consumed by the engine.
+
+
+## Shape physical semantics
+
+`freven.vanilla:blocktypes_v1` shape sources also declare runtime semantics that compile into canonical `[[block_shapes]]` entries.
+
+Example source fields:
+
+    [occludes]
+    bottom = true
+    top = true
+    north = true
+    south = true
+    east = true
+    west = true
+
+    [side_solid]
+    bottom = true
+    top = true
+    north = true
+    south = true
+    east = true
+    west = true
+
+    [[collision_boxes]]
+    min = [0.0, 0.0, 0.0]
+    max = [1.0, 1.0, 1.0]
+
+    [[selection_boxes]]
+    min = [0.0, 0.0, 0.0]
+    max = [1.0, 1.0, 1.0]
+
+The compiler validates boxes as normalized block-space AABBs with `0.0 <= min < max <= 1.0`. Visual `elements` remain model/render geometry. `collision_boxes`, `selection_boxes`, `occludes`, and `side_solid` are the canonical gameplay/query semantics consumed by engine runtime shape tables.

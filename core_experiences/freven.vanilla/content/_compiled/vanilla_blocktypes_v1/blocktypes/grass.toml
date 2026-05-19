@@ -36,3 +36,30 @@ model = "freven.vanilla:models/block/cube_faces"
 bottom = "freven.vanilla:block/grass_bottom"
 side = "freven.vanilla:block/grass_side"
 top = "freven.vanilla:block/grass_top"
+
+[[block_shapes]]
+target = "freven.vanilla:grass"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]

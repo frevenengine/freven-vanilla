@@ -61,6 +61,7 @@ impl AuthoringSourceRef {
 pub enum GeneratedDeclarationKind {
     Material,
     Model,
+    BlockShape,
     BlockVisual,
     ContentFamily,
     BlockTag,
@@ -71,6 +72,7 @@ impl GeneratedDeclarationKind {
         match self {
             Self::Material => "materials",
             Self::Model => "models",
+            Self::BlockShape => "block_shapes",
             Self::BlockVisual => "block_visuals",
             Self::ContentFamily => "families",
             Self::BlockTag => "block_tags",

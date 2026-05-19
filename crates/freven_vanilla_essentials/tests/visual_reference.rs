@@ -195,6 +195,7 @@ fn vanilla_content_manifest_is_explicit_modular_index() {
         "[[block_visuals]]",
         "[[families]]",
         "[[block_tags]]",
+        "[[block_shapes]]",
     ] {
         assert!(
             !root_manifest.contains(forbidden),
@@ -873,4 +874,62 @@ fn vanilla_shape_geometry_source_flows_into_compiled_model_output() {
 
 fn normalize_newlines(text: &str) -> String {
     text.replace("\r\n", "\n").trim_end().to_string()
+}
+
+#[test]
+fn vanilla_blocktype_shapes_compile_to_canonical_runtime_shapes() {
+    let manifest = read_vanilla_content_manifest_sources();
+
+    for target in [
+        "coarse_dirt",
+        "dirt",
+        "grass",
+        "glass",
+        "granite",
+        "limestone",
+        "stone",
+        "soil_poor_bare",
+        "soil_poor_sparse",
+        "soil_poor_normal",
+        "soil_medium_bare",
+        "soil_medium_sparse",
+        "soil_medium_normal",
+        "soil_rich_bare",
+        "soil_rich_sparse",
+        "soil_rich_normal",
+    ] {
+        assert!(
+            manifest.contains(&format!("target = \"freven.vanilla:{target}\"")),
+            "missing canonical block shape for Vanilla target {target}"
+        );
+    }
+
+    assert!(
+        manifest.contains("[[block_shapes.collision_boxes]]")
+            && manifest.contains("[[block_shapes.selection_boxes]]")
+            && manifest.contains("min = [0.0, 0.0, 0.0]")
+            && manifest.contains("max = [1.0, 1.0, 1.0]"),
+        "Vanilla full-cube blocks should compile collision and selection boxes"
+    );
+
+    assert!(
+        manifest.contains("[block_shapes.side_solid]")
+            && manifest.contains("bottom = true")
+            && manifest.contains("top = true"),
+        "Vanilla solid cube shapes should declare side-solid masks"
+    );
+
+    let glass = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/blocktypes/glass.toml",
+    );
+    assert!(
+        glass.contains("target = \"freven.vanilla:glass\"")
+            && glass.contains("[block_shapes.occludes]")
+            && glass.contains("bottom = false")
+            && glass.contains("top = false")
+            && glass.contains("[block_shapes.side_solid]")
+            && glass.contains("bottom = true")
+            && glass.contains("top = true"),
+        "transparent glass should remain full collision/selection but not claim opaque face occlusion"
+    );
 }

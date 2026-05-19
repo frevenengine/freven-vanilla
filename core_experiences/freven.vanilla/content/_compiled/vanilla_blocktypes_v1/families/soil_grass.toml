@@ -162,3 +162,255 @@ value = "soil_{fertility}_normal"
 [[families.templates.variants.tags]]
 tag = "freven:terrain_solids"
 value = "soil_{fertility}_normal"
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_poor_bare"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_poor_sparse"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_poor_normal"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_medium_bare"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_medium_sparse"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_medium_normal"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_rich_bare"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_rich_sparse"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:soil_rich_normal"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
