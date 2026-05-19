@@ -99,8 +99,49 @@ struct ShapeDoc {
     code: String,
     #[serde(default)]
     material_slots: Vec<String>,
+    occludes: ShapeSideMaskDoc,
+    side_solid: ShapeSideMaskDoc,
+    #[serde(default)]
+    collision_boxes: Vec<ShapeBoxDoc>,
+    #[serde(default)]
+    selection_boxes: Vec<ShapeBoxDoc>,
     #[serde(default)]
     elements: Vec<ShapeElementDoc>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+struct ShapeSideMaskDoc {
+    #[serde(default)]
+    bottom: bool,
+    #[serde(default)]
+    top: bool,
+    #[serde(default)]
+    north: bool,
+    #[serde(default)]
+    south: bool,
+    #[serde(default)]
+    east: bool,
+    #[serde(default)]
+    west: bool,
+}
+
+impl ShapeSideMaskDoc {
+    const fn none() -> Self {
+        Self {
+            bottom: false,
+            top: false,
+            north: false,
+            south: false,
+            east: false,
+            west: false,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+struct ShapeBoxDoc {
+    min: [f32; 3],
+    max: [f32; 3],
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,7 +329,11 @@ pub fn compile_source_tree(
             "cube_block" => {
                 let doc = read_toml::<CubeBlockDoc>(&block.path)?;
                 validate_profile(&block.path, &doc.profile, &doc.kind, "cube_block")?;
-                let rendered = compiler.compile_cube_block(&block.rel, &doc)?;
+                let rendered = compiler.compile_cube_block(
+                    &block.rel,
+                    &doc,
+                    shape_doc_for_ref(&shapes, &doc.shape, &block.path)?,
+                )?;
                 for tag in &doc.tags {
                     tag_blocks
                         .entry(tag.clone())
@@ -300,7 +345,11 @@ pub fn compile_source_tree(
             "face_block" => {
                 let doc = read_toml::<FaceBlockDoc>(&block.path)?;
                 validate_profile(&block.path, &doc.profile, &doc.kind, "face_block")?;
-                let rendered = compiler.compile_face_block(&block.rel, &doc)?;
+                let rendered = compiler.compile_face_block(
+                    &block.rel,
+                    &doc,
+                    shape_doc_for_ref(&shapes, &doc.shape, &block.path)?,
+                )?;
                 for tag in &doc.tags {
                     tag_blocks
                         .entry(tag.clone())
@@ -314,7 +363,7 @@ pub fn compile_source_tree(
                 validate_profile(&block.path, &doc.profile, &doc.kind, "variant_family")?;
                 let variants =
                     load_worldproperty_ref(content_root, &worldproperties, &doc.variant_group)?;
-                let rendered = compiler.compile_rock_family(&block.rel, &doc, variants)?;
+                let rendered = compiler.compile_rock_family(&block.rel, &doc, variants, &shapes)?;
                 compiler.add_file(format!("families/{}.toml", doc.code), rendered);
             }
             "topsoil_family" => {
@@ -324,8 +373,8 @@ pub fn compile_source_tree(
                     load_worldproperty_ref(content_root, &worldproperties, &doc.fertility_group)?;
                 let coverage =
                     load_worldproperty_ref(content_root, &worldproperties, &doc.coverage_group)?;
-                let rendered =
-                    compiler.compile_topsoil_family(&block.rel, &doc, fertility, coverage)?;
+                let rendered = compiler
+                    .compile_topsoil_family(&block.rel, &doc, fertility, coverage, &shapes)?;
                 compiler.add_file("families/soil_grass.toml", rendered);
             }
             other => {
@@ -457,6 +506,7 @@ impl SourceTreeCompiler {
 
         for shape in shapes {
             validate_profile(&shape.path, &shape.doc.profile, &shape.doc.kind, "shape")?;
+            validate_shape_semantics(&shape.path, &shape.doc)?;
 
             let key = model_key_for_shape_code(&shape.doc.code);
             self.add_declaration(
@@ -513,6 +563,7 @@ impl SourceTreeCompiler {
         &mut self,
         rel: &str,
         block: &CubeBlockDoc,
+        shape: &ShapeDoc,
     ) -> Result<String, SourceTreeCompileError> {
         let material_key = format!("freven.vanilla:block/{}", block.code);
         let visual_key = format!("freven.vanilla:visuals/block/{}", block.code);
@@ -527,6 +578,12 @@ impl SourceTreeCompiler {
             &visual_key,
             AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "blocktype"),
         )?;
+        self.add_declaration(
+            GeneratedDeclarationKind::BlockShape,
+            format!("freven.vanilla:{}", block.code),
+            AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "shape"),
+        )?;
+
         for tag in &block.tags {
             self.add_declaration(
                 GeneratedDeclarationKind::BlockTag,
@@ -557,6 +614,13 @@ impl SourceTreeCompiler {
         out.push_str("[block_visuals.materials]\n");
         out.push_str(&format!("all = \"{material_key}\"\n"));
 
+        emit_block_shape(
+            &mut out,
+            &format!("freven.vanilla:{}", block.code),
+            shape,
+            occludes_for_render_layer(shape.occludes, &block.render_layer),
+        );
+
         Ok(out)
     }
 
@@ -564,6 +628,7 @@ impl SourceTreeCompiler {
         &mut self,
         rel: &str,
         block: &FaceBlockDoc,
+        shape: &ShapeDoc,
     ) -> Result<String, SourceTreeCompileError> {
         let visual_key = format!("freven.vanilla:visuals/block/{}", block.code);
 
@@ -571,6 +636,12 @@ impl SourceTreeCompiler {
             GeneratedDeclarationKind::BlockVisual,
             &visual_key,
             AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "visual"),
+        )?;
+
+        self.add_declaration(
+            GeneratedDeclarationKind::BlockShape,
+            format!("freven.vanilla:{}", block.code),
+            AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "shape"),
         )?;
 
         for tag in &block.tags {
@@ -642,6 +713,13 @@ impl SourceTreeCompiler {
             ));
         }
 
+        emit_block_shape(
+            &mut out,
+            &format!("freven.vanilla:{}", block.code),
+            shape,
+            shape.occludes,
+        );
+
         Ok(out)
     }
 
@@ -650,8 +728,18 @@ impl SourceTreeCompiler {
         rel: &str,
         family: &VariantFamilyDoc,
         variants: &[WorldPropertyVariant],
+        shapes: &[Loaded<ShapeDoc>],
     ) -> Result<String, SourceTreeCompileError> {
         let family_key = format!("freven.vanilla:families/{}", family.code);
+        let shape = shape_doc_for_ref(shapes, &family.templates.visual.shape, Path::new(rel))?;
+
+        for variant in variants {
+            self.add_declaration(
+                GeneratedDeclarationKind::BlockShape,
+                format!("freven.vanilla:{}", variant.id),
+                AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "templates.shape"),
+            )?;
+        }
 
         self.add_declaration(
             GeneratedDeclarationKind::ContentFamily,
@@ -723,6 +811,15 @@ impl SourceTreeCompiler {
             out.push_str("value = \"{rock}\"\n\n");
         }
 
+        for variant in variants {
+            emit_block_shape(
+                &mut out,
+                &format!("freven.vanilla:{}", variant.id),
+                shape,
+                shape.occludes,
+            );
+        }
+
         Ok(out)
     }
 
@@ -732,8 +829,22 @@ impl SourceTreeCompiler {
         family: &TopsoilFamilyDoc,
         fertility: &[WorldPropertyVariant],
         coverage: &[WorldPropertyVariant],
+        shapes: &[Loaded<ShapeDoc>],
     ) -> Result<String, SourceTreeCompileError> {
         let family_key = format!("freven.vanilla:families/{}_grass", family.code);
+
+        for fertility_variant in fertility {
+            for coverage_variant in coverage {
+                self.add_declaration(
+                    GeneratedDeclarationKind::BlockShape,
+                    format!(
+                        "freven.vanilla:soil_{}_{}",
+                        fertility_variant.id, coverage_variant.id
+                    ),
+                    AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "coverage.shape"),
+                )?;
+            }
+        }
 
         self.add_declaration(
             GeneratedDeclarationKind::ContentFamily,
@@ -857,8 +968,152 @@ impl SourceTreeCompiler {
             }
         }
 
+        for fertility_variant in fertility {
+            for coverage_variant in coverage {
+                let coverage_id = &coverage_variant.id;
+                let visual = family.coverage.get(coverage_id).ok_or_else(|| {
+                    SourceTreeCompileError::Invalid {
+                        path: PathBuf::from(rel),
+                        message: format!("missing [coverage.{coverage_id}] section"),
+                    }
+                })?;
+                let shape = shape_doc_for_ref(shapes, &visual.shape, Path::new(rel))?;
+                emit_block_shape(
+                    &mut out,
+                    &format!(
+                        "freven.vanilla:soil_{}_{}",
+                        fertility_variant.id, coverage_id
+                    ),
+                    shape,
+                    shape.occludes,
+                );
+            }
+        }
+
         Ok(out)
     }
+}
+
+fn validate_shape_semantics(path: &Path, shape: &ShapeDoc) -> Result<(), SourceTreeCompileError> {
+    if shape.collision_boxes.is_empty() {
+        return Err(SourceTreeCompileError::Invalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "shape '{}' must declare at least one collision box",
+                shape.code
+            ),
+        });
+    }
+
+    if shape.selection_boxes.is_empty() {
+        return Err(SourceTreeCompileError::Invalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "shape '{}' must declare at least one selection box",
+                shape.code
+            ),
+        });
+    }
+
+    for (kind, boxes) in [
+        ("collision_boxes", shape.collision_boxes.as_slice()),
+        ("selection_boxes", shape.selection_boxes.as_slice()),
+    ] {
+        for (index, shape_box) in boxes.iter().enumerate() {
+            validate_shape_box(path, &shape.code, kind, index, shape_box)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_shape_box(
+    path: &Path,
+    shape_code: &str,
+    kind: &str,
+    index: usize,
+    shape_box: &ShapeBoxDoc,
+) -> Result<(), SourceTreeCompileError> {
+    for axis in 0..3 {
+        let min = shape_box.min[axis];
+        let max = shape_box.max[axis];
+        if !min.is_finite() || !max.is_finite() || min < 0.0 || max > 1.0 || min >= max {
+            return Err(SourceTreeCompileError::Invalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "shape '{shape_code}' {kind}[{index}] axis {axis} must satisfy 0.0 <= min < max <= 1.0"
+                ),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn shape_doc_for_ref<'a>(
+    shapes: &'a [Loaded<ShapeDoc>],
+    shape_ref: &str,
+    path: &Path,
+) -> Result<&'a ShapeDoc, SourceTreeCompileError> {
+    let code = shape_ref
+        .strip_prefix("freven.vanilla:shapes/")
+        .unwrap_or(shape_ref);
+
+    shapes
+        .iter()
+        .find(|shape| shape.doc.code == code)
+        .map(|shape| &shape.doc)
+        .ok_or_else(|| SourceTreeCompileError::Invalid {
+            path: path.to_path_buf(),
+            message: format!("shape reference '{shape_ref}' was not loaded"),
+        })
+}
+
+fn occludes_for_render_layer(
+    shape_occludes: ShapeSideMaskDoc,
+    render_layer: &str,
+) -> ShapeSideMaskDoc {
+    if render_layer == "transparent" {
+        ShapeSideMaskDoc::none()
+    } else {
+        shape_occludes
+    }
+}
+
+fn emit_block_shape(out: &mut String, target: &str, shape: &ShapeDoc, occludes: ShapeSideMaskDoc) {
+    out.push('\n');
+    out.push_str("[[block_shapes]]\n");
+    out.push_str(&format!("target = \"{target}\"\n\n"));
+
+    emit_side_mask(out, "block_shapes.occludes", occludes);
+    out.push('\n');
+    emit_side_mask(out, "block_shapes.side_solid", shape.side_solid);
+
+    for shape_box in &shape.collision_boxes {
+        out.push('\n');
+        out.push_str("[[block_shapes.collision_boxes]]\n");
+        out.push_str(&format!("min = {}\n", vec3(shape_box.min)));
+        out.push_str(&format!("max = {}\n", vec3(shape_box.max)));
+    }
+
+    for shape_box in &shape.selection_boxes {
+        out.push('\n');
+        out.push_str("[[block_shapes.selection_boxes]]\n");
+        out.push_str(&format!("min = {}\n", vec3(shape_box.min)));
+        out.push_str(&format!("max = {}\n", vec3(shape_box.max)));
+    }
+
+    out.push('\n');
+}
+
+fn emit_side_mask(out: &mut String, table: &str, mask: ShapeSideMaskDoc) {
+    out.push_str(&format!("[{table}]\n"));
+    out.push_str(&format!("bottom = {}\n", mask.bottom));
+    out.push_str(&format!("top = {}\n", mask.top));
+    out.push_str(&format!("north = {}\n", mask.north));
+    out.push_str(&format!("south = {}\n", mask.south));
+    out.push_str(&format!("east = {}\n", mask.east));
+    out.push_str(&format!("west = {}\n", mask.west));
 }
 
 fn load_docs<T>(dir: &Path) -> Result<Vec<Loaded<T>>, SourceTreeCompileError>
