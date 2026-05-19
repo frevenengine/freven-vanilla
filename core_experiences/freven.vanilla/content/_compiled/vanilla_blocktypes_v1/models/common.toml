@@ -4,71 +4,13 @@ schema = 1
 
 [[models]]
 key = "freven.vanilla:models/block/cube_all"
-kind = "cuboid_parts"
+kind = "cube_all"
 material_slots = ["all"]
-
-[[models.parts]]
-name = "cube"
-from = [0.0, 0.0, 0.0]
-to = [1.0, 1.0, 1.0]
-
-[models.parts.faces.bottom]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.east]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.north]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.south]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.top]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.west]
-material = "all"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [[models]]
 key = "freven.vanilla:models/block/cube_faces"
-kind = "cuboid_parts"
+kind = "cube_faces"
 material_slots = ["bottom", "side", "top"]
-
-[[models.parts]]
-name = "cube"
-from = [0.0, 0.0, 0.0]
-to = [1.0, 1.0, 1.0]
-
-[models.parts.faces.bottom]
-material = "bottom"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.east]
-material = "side"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.north]
-material = "side"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.south]
-material = "side"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.top]
-material = "top"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
-
-[models.parts.faces.west]
-material = "side"
-# source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [[models]]
 key = "freven.vanilla:models/block/topsoil_overlay"
@@ -112,29 +54,24 @@ to = [1.0, 1.0, 1.0]
 [models.parts.faces.east]
 material = "grass_side"
 overlay = true
-cull = false
 # source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [models.parts.faces.north]
 material = "grass_side"
 overlay = true
-cull = false
 # source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [models.parts.faces.south]
 material = "grass_side"
 overlay = true
-cull = false
 # source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [models.parts.faces.top]
 material = "grass_top"
 overlay = true
-cull = false
 # source_uv = [0.0, 0.0, 1.0, 1.0]
 
 [models.parts.faces.west]
 material = "grass_side"
 overlay = true
-cull = false
 # source_uv = [0.0, 0.0, 1.0, 1.0]
