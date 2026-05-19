@@ -517,6 +517,36 @@ impl SourceTreeCompiler {
 
             out.push_str("[[models]]\n");
             out.push_str(&format!("key = \"{key}\"\n"));
+            match shape.doc.code.as_str() {
+                // Preserve greedy-compatible canonical model kinds for ordinary
+                // full-cube terrain. High-level Vanilla source can still own
+                // these shapes, but compiled output must not route full cubes
+                // through the detailed cuboid-parts meshing path.
+                "block/cube" => {
+                    out.push_str("kind = \"cube_all\"\n");
+                    if !shape.doc.material_slots.is_empty() {
+                        out.push_str(&format!(
+                            "material_slots = [{}]\n",
+                            quoted_strings(shape.doc.material_slots.iter().map(String::as_str))
+                        ));
+                    }
+                    out.push('\n');
+                    continue;
+                }
+                "block/cube_faces" => {
+                    out.push_str("kind = \"cube_faces\"\n");
+                    if !shape.doc.material_slots.is_empty() {
+                        out.push_str(&format!(
+                            "material_slots = [{}]\n",
+                            quoted_strings(shape.doc.material_slots.iter().map(String::as_str))
+                        ));
+                    }
+                    out.push('\n');
+                    continue;
+                }
+                _ => {}
+            }
+
             out.push_str("kind = \"cuboid_parts\"\n");
             if !shape.doc.material_slots.is_empty() {
                 out.push_str(&format!(

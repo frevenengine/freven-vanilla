@@ -442,13 +442,28 @@ fn vanilla_blocks_have_authored_model_and_visual_bindings() {
         models.contains("key = \"freven.vanilla:models/block/topsoil_overlay\""),
         "Vanilla should keep the stable topsoil_overlay model key"
     );
+    let cube_all_idx = models
+        .find("key = \"freven.vanilla:models/block/cube_all\"")
+        .expect("cube_all model key");
+    let cube_faces_idx = models
+        .find("key = \"freven.vanilla:models/block/cube_faces\"")
+        .expect("cube_faces model key");
+    let topsoil_idx = models
+        .find("key = \"freven.vanilla:models/block/topsoil_overlay\"")
+        .expect("topsoil_overlay model key");
+
     assert!(
-        models.contains("kind = \"cuboid_parts\""),
-        "Vanilla model keys should now be backed by data-driven cuboid part geometry"
+        models[cube_all_idx..cube_faces_idx].contains("kind = \"cube_all\""),
+        "full cube_all terrain model must stay greedy-compatible"
     );
     assert!(
-        models.contains("[[models.parts]]"),
-        "Vanilla shape source should compile into authored model parts"
+        models[cube_faces_idx..topsoil_idx].contains("kind = \"cube_faces\""),
+        "cube_faces terrain model must stay greedy-compatible"
+    );
+    assert!(
+        models[topsoil_idx..].contains("kind = \"cuboid_parts\"")
+            && models[topsoil_idx..].contains("[[models.parts]]"),
+        "topsoil overlay should remain authored cuboid part geometry"
     );
 
     let grass = read_repo_file(
@@ -815,8 +830,14 @@ fn vanilla_high_level_shapes_are_data_driven_geometry_source() {
     }
 
     assert!(cube_faces.contains("material_slots = [\"bottom\", \"side\", \"top\"]"));
-    assert!(topsoil.contains("overlay = true"));
-    assert!(topsoil.contains("cull = false"));
+    assert!(
+        topsoil.contains("overlay = true"),
+        "topsoil source should keep grass overlay faces explicit"
+    );
+    assert!(
+        !topsoil.contains("cull = false"),
+        "topsoil overlay faces should participate in neighbor face culling"
+    );
 }
 
 #[test]
