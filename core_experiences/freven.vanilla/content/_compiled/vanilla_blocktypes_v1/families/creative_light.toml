@@ -73,11 +73,11 @@ material = "block/creative_light_{creative_light}"
 
 [[families.templates.tags]]
 tag = "freven:light_blocks"
-value = "{creative_light}"
+value = "creative_light_{creative_light}"
 
 [[families.templates.tags]]
 tag = "freven:creative_lights"
-value = "{creative_light}"
+value = "creative_light_{creative_light}"
 
 
 [[block_shapes]]

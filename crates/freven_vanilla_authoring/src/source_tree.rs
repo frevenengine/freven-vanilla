@@ -918,7 +918,10 @@ impl SourceTreeCompiler {
         for tag in &family.tags {
             out.push_str("[[families.templates.tags]]\n");
             out.push_str(&format!("tag = \"{tag}\"\n"));
-            out.push_str(&format!("value = \"{{{axis_name}}}\"\n\n"));
+            out.push_str(&format!(
+                "value = \"{}\"\n\n",
+                family.templates.visual.target
+            ));
         }
 
         for variant in variants {
