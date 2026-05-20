@@ -831,12 +831,15 @@ impl SourceTreeCompiler {
         shapes: &[Loaded<ShapeDoc>],
     ) -> Result<String, SourceTreeCompileError> {
         let family_key = format!("freven.vanilla:families/{}", family.code);
+        let axis_name = family.code.as_str();
         let shape = shape_doc_for_ref(shapes, &family.templates.visual.shape, Path::new(rel))?;
 
         for variant in variants {
+            let target =
+                render_variant_family_template(&family.templates.visual.target, axis_name, variant);
             self.add_declaration(
                 GeneratedDeclarationKind::BlockShape,
-                format!("freven.vanilla:{}", variant.id),
+                format!("freven.vanilla:{target}"),
                 AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "templates.shape"),
             )?;
         }
@@ -873,7 +876,7 @@ impl SourceTreeCompiler {
         out.push_str("description = \"Generated from freven.vanilla:blocktypes_v1 rock blocktype source.\"\n\n");
 
         out.push_str("[[families.axes]]\n");
-        out.push_str("name = \"rock\"\n\n");
+        out.push_str(&format!("name = \"{axis_name}\"\n\n"));
 
         for variant in variants {
             out.push_str("[[families.axes.values]]\n");
@@ -908,13 +911,15 @@ impl SourceTreeCompiler {
         for tag in &family.tags {
             out.push_str("[[families.templates.tags]]\n");
             out.push_str(&format!("tag = \"{tag}\"\n"));
-            out.push_str("value = \"{rock}\"\n\n");
+            out.push_str(&format!("value = \"{{{axis_name}}}\"\n\n"));
         }
 
         for variant in variants {
+            let target =
+                render_variant_family_template(&family.templates.visual.target, axis_name, variant);
             emit_block_shape(
                 &mut out,
-                &format!("freven.vanilla:{}", variant.id),
+                &format!("freven.vanilla:{target}"),
                 shape,
                 shape.occludes,
             );
@@ -1428,6 +1433,32 @@ fn model_key_for_shape_code(code: &str) -> String {
     };
 
     format!("freven.vanilla:models/block/{suffix}")
+}
+
+fn render_variant_family_template(
+    template: &str,
+    axis_name: &str,
+    variant: &WorldPropertyVariant,
+) -> String {
+    let mut rendered = template
+        .replace(&format!("{{{axis_name}}}"), &variant.id)
+        .replace(&format!("{{{axis_name}.id}}"), &variant.id)
+        .replace(&format!("{{{axis_name}.display}}"), &variant.display);
+
+    if let Some(value) = &variant.fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.fallback_tint_rgba}}"), value);
+    }
+    if let Some(value) = &variant.rock_group {
+        rendered = rendered.replace(&format!("{{{axis_name}.rock_group}}"), value);
+    }
+    if let Some(value) = &variant.top_fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.top_fallback_tint_rgba}}"), value);
+    }
+    if let Some(value) = &variant.side_fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.side_fallback_tint_rgba}}"), value);
+    }
+
+    rendered
 }
 
 fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
