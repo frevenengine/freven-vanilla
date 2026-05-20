@@ -182,6 +182,30 @@ struct CubeBlockDoc {
     alpha_cutoff_u8: Option<u8>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    lighting: Option<MaterialLightingDoc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MaterialLightingDoc {
+    #[serde(default = "default_lighting_model")]
+    lighting_model: String,
+    #[serde(default)]
+    emissive_rgba: Option<u32>,
+    #[serde(default)]
+    emissive_strength_milli: u16,
+    #[serde(default)]
+    emits_light: bool,
+    #[serde(default = "default_light_color_rgba")]
+    light_color_rgba: u32,
+    #[serde(default)]
+    light_intensity_u8: u8,
+    #[serde(default = "default_light_opacity_u8")]
+    light_opacity_u8: u8,
+    #[serde(default)]
+    light_transmission_u8: u8,
+    #[serde(default = "default_light_authority")]
+    authority: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -299,6 +323,22 @@ struct WorldPropertyVariant {
 
 fn opaque_layer() -> String {
     "opaque".to_string()
+}
+
+fn default_lighting_model() -> String {
+    "lit".to_string()
+}
+
+fn default_light_color_rgba() -> u32 {
+    0xFFFF_FFFF
+}
+
+fn default_light_opacity_u8() -> u8 {
+    255
+}
+
+fn default_light_authority() -> String {
+    "visual_only".to_string()
 }
 
 #[derive(Debug)]
@@ -636,6 +676,7 @@ impl SourceTreeCompiler {
             block.fallback_debug_tint_rgba
         ));
         emit_render_layer(&mut out, &block.render_layer, block.alpha_cutoff_u8);
+        emit_material_lighting(&mut out, block.lighting.as_ref());
         out.push('\n');
 
         out.push_str("\n[[block_visuals]]\n");
@@ -1401,6 +1442,45 @@ fn emit_topsoil_surface_material_template(out: &mut String, coverage: &str, face
     out.push_str(&format!(
         "fallback_tint_rgba = \"{{coverage.{face}_fallback_tint_rgba}}\"\n\n"
     ));
+}
+
+fn emit_material_lighting(out: &mut String, lighting: Option<&MaterialLightingDoc>) {
+    let Some(lighting) = lighting else {
+        return;
+    };
+
+    out.push_str("\n[materials.lighting]\n");
+    out.push_str(&format!(
+        "lighting_model = \"{}\"\n",
+        lighting.lighting_model
+    ));
+
+    if let Some(emissive_rgba) = lighting.emissive_rgba {
+        out.push_str(&format!("emissive_rgba = {emissive_rgba}\n"));
+    }
+
+    out.push_str(&format!(
+        "emissive_strength_milli = {}\n",
+        lighting.emissive_strength_milli
+    ));
+    out.push_str(&format!("emits_light = {}\n", lighting.emits_light));
+    out.push_str(&format!(
+        "light_color_rgba = {}\n",
+        lighting.light_color_rgba
+    ));
+    out.push_str(&format!(
+        "light_intensity_u8 = {}\n",
+        lighting.light_intensity_u8
+    ));
+    out.push_str(&format!(
+        "light_opacity_u8 = {}\n",
+        lighting.light_opacity_u8
+    ));
+    out.push_str(&format!(
+        "light_transmission_u8 = {}\n",
+        lighting.light_transmission_u8
+    ));
+    out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
 }
 
 fn emit_render_layer(out: &mut String, layer: &str, alpha_cutoff_u8: Option<u8>) {
