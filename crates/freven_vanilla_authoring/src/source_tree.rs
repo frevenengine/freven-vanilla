@@ -343,6 +343,8 @@ struct WorldPropertyVariant {
     top_fallback_tint_rgba: Option<String>,
     #[serde(default)]
     side_fallback_tint_rgba: Option<String>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, toml::Value>,
 }
 
 fn opaque_layer() -> String {
@@ -887,6 +889,11 @@ impl SourceTreeCompiler {
             }
             if let Some(group) = &variant.rock_group {
                 out.push_str(&format!("rock_group = \"{group}\"\n"));
+            }
+            for (key, value) in &variant.extra {
+                if let Some(rendered) = toml_scalar_value_to_toml(value) {
+                    out.push_str(&format!("{key} = {rendered}\n"));
+                }
             }
             out.push('\n');
         }
@@ -1458,7 +1465,33 @@ fn render_variant_family_template(
         rendered = rendered.replace(&format!("{{{axis_name}.side_fallback_tint_rgba}}"), value);
     }
 
+    for (key, value) in &variant.extra {
+        if let Some(value) = toml_scalar_value_to_template_string(value) {
+            rendered = rendered.replace(&format!("{{{axis_name}.{key}}}"), &value);
+        }
+    }
+
     rendered
+}
+
+fn toml_scalar_value_to_template_string(value: &toml::Value) -> Option<String> {
+    match value {
+        toml::Value::String(value) => Some(value.clone()),
+        toml::Value::Integer(value) => Some(value.to_string()),
+        toml::Value::Float(value) => Some(value.to_string()),
+        toml::Value::Boolean(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn toml_scalar_value_to_toml(value: &toml::Value) -> Option<String> {
+    match value {
+        toml::Value::String(value) => Some(format!("\"{}\"", escape_toml_string(value))),
+        toml::Value::Integer(value) => Some(value.to_string()),
+        toml::Value::Float(value) => Some(value.to_string()),
+        toml::Value::Boolean(value) => Some(value.to_string()),
+        _ => None,
+    }
 }
 
 fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
