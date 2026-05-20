@@ -288,6 +288,30 @@ struct TemplateMaterial {
     fallback_debug_tint_rgba: String,
     #[serde(default = "opaque_layer")]
     render_layer: String,
+    #[serde(default)]
+    lighting: Option<TemplateMaterialLightingDoc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TemplateMaterialLightingDoc {
+    #[serde(default = "default_lighting_model")]
+    lighting_model: String,
+    #[serde(default)]
+    emissive_rgba: Option<toml::Value>,
+    #[serde(default)]
+    emissive_strength_milli: Option<toml::Value>,
+    #[serde(default)]
+    emits_light: Option<toml::Value>,
+    #[serde(default)]
+    light_color_rgba: Option<toml::Value>,
+    #[serde(default)]
+    light_intensity_u8: Option<toml::Value>,
+    #[serde(default)]
+    light_opacity_u8: Option<toml::Value>,
+    #[serde(default)]
+    light_transmission_u8: Option<toml::Value>,
+    #[serde(default = "default_light_authority")]
+    authority: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1415,6 +1439,72 @@ fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
         material.fallback_debug_tint_rgba
     ));
     out.push_str(&format!("render_layer = \"{}\"\n", material.render_layer));
+    emit_template_material_lighting(out, material.lighting.as_ref());
+}
+
+fn emit_template_material_lighting(
+    out: &mut String,
+    lighting: Option<&TemplateMaterialLightingDoc>,
+) {
+    let Some(lighting) = lighting else {
+        return;
+    };
+
+    out.push_str("\n[families.templates.material.lighting]\n");
+    out.push_str(&format!(
+        "lighting_model = \"{}\"\n",
+        lighting.lighting_model
+    ));
+
+    emit_template_value(out, "emissive_rgba", lighting.emissive_rgba.as_ref());
+    emit_template_value(
+        out,
+        "emissive_strength_milli",
+        lighting.emissive_strength_milli.as_ref(),
+    );
+    emit_template_value(out, "emits_light", lighting.emits_light.as_ref());
+    emit_template_value(out, "light_color_rgba", lighting.light_color_rgba.as_ref());
+    emit_template_value(
+        out,
+        "light_intensity_u8",
+        lighting.light_intensity_u8.as_ref(),
+    );
+    emit_template_value(out, "light_opacity_u8", lighting.light_opacity_u8.as_ref());
+    emit_template_value(
+        out,
+        "light_transmission_u8",
+        lighting.light_transmission_u8.as_ref(),
+    );
+
+    out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
+}
+
+fn emit_template_value(out: &mut String, key: &str, value: Option<&toml::Value>) {
+    let Some(value) = value else {
+        return;
+    };
+
+    match value {
+        toml::Value::String(value) => {
+            out.push_str(&format!("{key} = \"{}\"\n", escape_toml_string(value)));
+        }
+        toml::Value::Integer(value) => {
+            out.push_str(&format!("{key} = {value}\n"));
+        }
+        toml::Value::Boolean(value) => {
+            out.push_str(&format!("{key} = {value}\n"));
+        }
+        other => {
+            out.push_str(&format!(
+                "# unsupported template value for {key}: {}\n",
+                other.type_str()
+            ));
+        }
+    }
+}
+
+fn escape_toml_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn emit_topsoil_surface_material_template(out: &mut String, coverage: &str, face: &str) {
