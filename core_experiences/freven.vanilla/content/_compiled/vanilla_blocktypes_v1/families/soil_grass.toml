@@ -2,54 +2,6 @@ schema = 1
 # generated_from_profile = "freven.vanilla:blocktypes_v1"
 # generated output is canonical content graph, not authoring source
 
-[[materials]]
-key = "freven.vanilla:block/grass_sparse_side"
-texture = "freven.vanilla:textures/grass_sparse_side"
-fallback_debug_tint_rgba = 1605584383
-render_layer = "cutout"
-alpha_cutoff_u8 = 96
-
-[materials.tint]
-source = "freven.core:tint/color_map_2d_v1"
-color_map_texture = "freven.vanilla:textures/tint/grass_tint"
-fallback_tint_rgba = 1605584383
-
-[[materials]]
-key = "freven.vanilla:block/grass_sparse_top"
-texture = "freven.vanilla:textures/grass_sparse_top"
-fallback_debug_tint_rgba = 2044286975
-render_layer = "cutout"
-alpha_cutoff_u8 = 96
-
-[materials.tint]
-source = "freven.core:tint/color_map_2d_v1"
-color_map_texture = "freven.vanilla:textures/tint/grass_tint"
-fallback_tint_rgba = 2044286975
-
-[[materials]]
-key = "freven.vanilla:block/grass_normal_side"
-texture = "freven.vanilla:textures/grass_normal_side"
-fallback_debug_tint_rgba = 1605584383
-render_layer = "cutout"
-alpha_cutoff_u8 = 96
-
-[materials.tint]
-source = "freven.core:tint/color_map_2d_v1"
-color_map_texture = "freven.vanilla:textures/tint/grass_tint"
-fallback_tint_rgba = 1605584383
-
-[[materials]]
-key = "freven.vanilla:block/grass_normal_top"
-texture = "freven.vanilla:textures/grass_normal_top"
-fallback_debug_tint_rgba = 2044286975
-render_layer = "cutout"
-alpha_cutoff_u8 = 96
-
-[materials.tint]
-source = "freven.core:tint/color_map_2d_v1"
-color_map_texture = "freven.vanilla:textures/tint/grass_tint"
-fallback_tint_rgba = 2044286975
-
 [[families]]
 key = "freven.vanilla:families/soil_grass"
 
@@ -122,15 +74,49 @@ value = "soil_{fertility}_bare"
 [[families.templates.variants]]
 coverage = "sparse"
 
+[families.templates.variants.materials.side]
+key = "block/soil_{fertility}_sparse_side"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants.materials.side.surface_layers]]
+name = "grass_overlay"
+texture = "textures/grass_sparse_side"
+blend = "alpha_over"
+tint_sampling = "world_xz"
+
+[families.templates.variants.materials.side.surface_layers.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "textures/tint/grass_tint"
+fallback_tint_rgba = "{coverage.side_fallback_tint_rgba}"
+
+[families.templates.variants.materials.top]
+key = "block/soil_{fertility}_sparse_top"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants.materials.top.surface_layers]]
+name = "grass_overlay"
+texture = "textures/grass_sparse_top"
+blend = "alpha_over"
+tint_sampling = "world_xz"
+
+[families.templates.variants.materials.top.surface_layers.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "textures/tint/grass_tint"
+fallback_tint_rgba = "{coverage.top_fallback_tint_rgba}"
+
 [families.templates.variants.visual]
 key = "visuals/block/soil_{fertility}_sparse"
 target = "soil_{fertility}_sparse"
-model = "freven.vanilla:models/block/topsoil_overlay"
+model = "freven.vanilla:models/block/cube_faces"
 
 [families.templates.variants.visual.materials]
-base = "block/soil_{fertility}"
-grass_side = "block/grass_sparse_side"
-grass_top = "block/grass_sparse_top"
+bottom = "block/soil_{fertility}"
+side = "block/soil_{fertility}_sparse_side"
+top = "block/soil_{fertility}_sparse_top"
 
 
 [[families.templates.variants.tags]]
@@ -144,15 +130,49 @@ value = "soil_{fertility}_sparse"
 [[families.templates.variants]]
 coverage = "normal"
 
+[families.templates.variants.materials.side]
+key = "block/soil_{fertility}_normal_side"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants.materials.side.surface_layers]]
+name = "grass_overlay"
+texture = "textures/grass_normal_side"
+blend = "alpha_over"
+tint_sampling = "world_xz"
+
+[families.templates.variants.materials.side.surface_layers.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "textures/tint/grass_tint"
+fallback_tint_rgba = "{coverage.side_fallback_tint_rgba}"
+
+[families.templates.variants.materials.top]
+key = "block/soil_{fertility}_normal_top"
+texture = "textures/soil_{fertility}"
+fallback_debug_tint_rgba = "{fertility.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[[families.templates.variants.materials.top.surface_layers]]
+name = "grass_overlay"
+texture = "textures/grass_normal_top"
+blend = "alpha_over"
+tint_sampling = "world_xz"
+
+[families.templates.variants.materials.top.surface_layers.tint]
+source = "freven.core:tint/color_map_2d_v1"
+color_map_texture = "textures/tint/grass_tint"
+fallback_tint_rgba = "{coverage.top_fallback_tint_rgba}"
+
 [families.templates.variants.visual]
 key = "visuals/block/soil_{fertility}_normal"
 target = "soil_{fertility}_normal"
-model = "freven.vanilla:models/block/topsoil_overlay"
+model = "freven.vanilla:models/block/cube_faces"
 
 [families.templates.variants.visual.materials]
-base = "block/soil_{fertility}"
-grass_side = "block/grass_normal_side"
-grass_top = "block/grass_normal_top"
+bottom = "block/soil_{fertility}"
+side = "block/soil_{fertility}_normal_side"
+top = "block/soil_{fertility}_normal_top"
 
 
 [[families.templates.variants.tags]]

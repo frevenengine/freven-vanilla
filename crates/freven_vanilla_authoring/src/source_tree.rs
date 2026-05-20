@@ -250,11 +250,11 @@ struct TopsoilCoverageVisual {
     #[serde(default)]
     material: Option<String>,
     #[serde(default)]
-    base: Option<String>,
+    bottom: Option<String>,
     #[serde(default)]
-    grass_side: Option<String>,
+    side: Option<String>,
     #[serde(default)]
-    grass_top: Option<String>,
+    top: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -894,20 +894,6 @@ impl SourceTreeCompiler {
 
         let mut out = canonical_header();
 
-        for coverage_variant in coverage {
-            if coverage_variant.id == "bare" {
-                continue;
-            }
-
-            if let Some(side_tint) = &coverage_variant.side_fallback_tint_rgba {
-                emit_grass_overlay_material(&mut out, &coverage_variant.id, "side", side_tint);
-            }
-
-            if let Some(top_tint) = &coverage_variant.top_fallback_tint_rgba {
-                emit_grass_overlay_material(&mut out, &coverage_variant.id, "top", top_tint);
-            }
-        }
-
         out.push_str("[[families]]\n");
         out.push_str(&format!("key = \"{family_key}\"\n\n"));
         out.push_str("[families.family]\n");
@@ -962,29 +948,37 @@ impl SourceTreeCompiler {
 
             out.push_str("[[families.templates.variants]]\n");
             out.push_str(&format!("coverage = \"{coverage_id}\"\n\n"));
+            if coverage_id != "bare" {
+                emit_topsoil_surface_material_template(&mut out, coverage_id, "side");
+                emit_topsoil_surface_material_template(&mut out, coverage_id, "top");
+            }
+
             out.push_str("[families.templates.variants.visual]\n");
             out.push_str(&format!("key = \"{}\"\n", visual.visual));
             out.push_str(&format!("target = \"soil_{{fertility}}_{coverage_id}\"\n"));
-            out.push_str(&format!(
-                "model = \"{}\"\n",
+
+            let model_key = if coverage_id == "bare" {
                 model_key_for_shape_ref(&visual.shape)
-            ));
+            } else {
+                "freven.vanilla:models/block/cube_faces".to_string()
+            };
+            out.push_str(&format!("model = \"{model_key}\"\n"));
 
             if let Some(material) = &visual.material {
                 out.push_str(&format!("material = \"{material}\"\n"));
             }
 
-            if visual.base.is_some() || visual.grass_side.is_some() || visual.grass_top.is_some() {
+            if visual.bottom.is_some() || visual.side.is_some() || visual.top.is_some() {
                 out.push('\n');
                 out.push_str("[families.templates.variants.visual.materials]\n");
-                if let Some(base) = &visual.base {
-                    out.push_str(&format!("base = \"{base}\"\n"));
+                if let Some(bottom) = &visual.bottom {
+                    out.push_str(&format!("bottom = \"{bottom}\"\n"));
                 }
-                if let Some(grass_side) = &visual.grass_side {
-                    out.push_str(&format!("grass_side = \"{grass_side}\"\n"));
+                if let Some(side) = &visual.side {
+                    out.push_str(&format!("side = \"{side}\"\n"));
                 }
-                if let Some(grass_top) = &visual.grass_top {
-                    out.push_str(&format!("grass_top = \"{grass_top}\"\n"));
+                if let Some(top) = &visual.top {
+                    out.push_str(&format!("top = \"{top}\"\n"));
                 }
             }
 
@@ -1382,26 +1376,30 @@ fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
     out.push_str(&format!("render_layer = \"{}\"\n", material.render_layer));
 }
 
-fn emit_grass_overlay_material(out: &mut String, coverage: &str, face: &str, fallback: &str) {
-    out.push_str("[[materials]]\n");
+fn emit_topsoil_surface_material_template(out: &mut String, coverage: &str, face: &str) {
+    out.push_str(&format!("[families.templates.variants.materials.{face}]\n"));
     out.push_str(&format!(
-        "key = \"freven.vanilla:block/grass_{coverage}_{face}\"\n"
+        "key = \"block/soil_{{fertility}}_{coverage}_{face}\"\n"
     ));
+    out.push_str("texture = \"textures/soil_{fertility}\"\n");
+    out.push_str("fallback_debug_tint_rgba = \"{fertility.fallback_tint_rgba}\"\n");
+    out.push_str("render_layer = \"opaque\"\n\n");
+
     out.push_str(&format!(
-        "texture = \"freven.vanilla:textures/grass_{coverage}_{face}\"\n"
+        "[[families.templates.variants.materials.{face}.surface_layers]]\n"
     ));
+    out.push_str("name = \"grass_overlay\"\n");
+    out.push_str(&format!("texture = \"textures/grass_{coverage}_{face}\"\n"));
+    out.push_str("blend = \"alpha_over\"\n");
+    out.push_str("tint_sampling = \"world_xz\"\n\n");
+
     out.push_str(&format!(
-        "fallback_debug_tint_rgba = {}\n",
-        rgba_hex_to_u32(fallback)
+        "[families.templates.variants.materials.{face}.surface_layers.tint]\n"
     ));
-    out.push_str("render_layer = \"cutout\"\n");
-    out.push_str("alpha_cutoff_u8 = 96\n\n");
-    out.push_str("[materials.tint]\n");
     out.push_str("source = \"freven.core:tint/color_map_2d_v1\"\n");
-    out.push_str("color_map_texture = \"freven.vanilla:textures/tint/grass_tint\"\n");
+    out.push_str("color_map_texture = \"textures/tint/grass_tint\"\n");
     out.push_str(&format!(
-        "fallback_tint_rgba = {}\n\n",
-        rgba_hex_to_u32(fallback)
+        "fallback_tint_rgba = \"{{coverage.{face}_fallback_tint_rgba}}\"\n\n"
     ));
 }
 
@@ -1457,8 +1455,4 @@ fn format_f32(value: f32) -> String {
         let text = format!("{value:.6}");
         text.trim_end_matches('0').trim_end_matches('.').to_string()
     }
-}
-
-fn rgba_hex_to_u32(hex: &str) -> u32 {
-    u32::from_str_radix(hex, 16).unwrap_or(0xFFFFFFFF)
 }

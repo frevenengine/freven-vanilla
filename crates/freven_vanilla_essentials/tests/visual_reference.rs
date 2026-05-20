@@ -308,10 +308,13 @@ fn vanilla_rock_family_is_authored_as_generated_content_source() {
 }
 
 #[test]
-fn vanilla_soil_grass_family_is_layered_topsoil_content() {
+fn vanilla_soil_grass_family_uses_surface_material_layers() {
     let manifest = read_vanilla_content_manifest_sources();
     let blocks = read_repo_file("crates/freven_vanilla_essentials/src/blocks.rs");
     let worldgen = read_repo_file("crates/freven_vanilla_essentials/src/lib.rs");
+    let soil_family = read_repo_file(
+        "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+    );
 
     assert!(
         manifest.contains("key = \"freven.vanilla:families/soil_grass\""),
@@ -345,18 +348,18 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
     }
 
     assert!(
-        manifest.contains("key = \"freven.vanilla:models/block/topsoil_overlay\"")
-            && manifest.contains("kind = \"layered_cube_faces\"")
-            && manifest.contains("material_slots = [\"base\", \"grass_side\", \"grass_top\"]"),
-        "soil/grass family should use a reusable layered TopSoil layered_cube_faces model"
+        soil_family.contains("model = \"freven.vanilla:models/block/cube_faces\"")
+            && !soil_family.contains("model = \"freven.vanilla:models/block/topsoil_overlay\""),
+        "covered soil variants should use greedy-compatible cube_faces, not a special TopSoil geometry model"
     );
 
     assert!(
-        manifest.contains("name = \"grass_overlay\"")
-            && manifest.contains("overlay = true")
-            && !manifest.contains("1.001")
-            && !manifest.contains("-0.001"),
-        "TopSoil grass overlay faces should use first-class overlay metadata, not authored geometry offsets"
+        soil_family.contains("[[families.templates.variants.materials.side.surface_layers]]")
+            && soil_family.contains("[[families.templates.variants.materials.top.surface_layers]]")
+            && soil_family.contains("name = \"grass_overlay\"")
+            && soil_family.contains("blend = \"alpha_over\"")
+            && soil_family.contains("tint_sampling = \"world_xz\""),
+        "TopSoil grass should be authored as surface material layers, not overlay geometry"
     );
 
     assert!(
@@ -368,20 +371,21 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
     );
 
     assert!(
-        manifest.contains("coverage = \"sparse\"")
-            && manifest.contains("coverage = \"normal\"")
-            && manifest.contains("model = \"freven.vanilla:models/block/topsoil_overlay\"")
-            && manifest.contains("grass_top = \"block/grass_sparse_top\"")
-            && manifest.contains("grass_side = \"block/grass_normal_side\""),
-        "covered soil variants should expand to layered grass top/side overlay visuals"
+        soil_family.contains("coverage = \"sparse\"")
+            && soil_family.contains("coverage = \"normal\"")
+            && soil_family.contains("bottom = \"block/soil_{fertility}\"")
+            && soil_family.contains("side = \"block/soil_{fertility}_sparse_side\"")
+            && soil_family.contains("top = \"block/soil_{fertility}_normal_top\""),
+        "covered soil variants should bind cube faces to generated surface-layer material stacks"
     );
 
     assert!(
-        manifest.contains("render_layer = \"cutout\"")
-            && manifest.contains("alpha_cutoff_u8 = 96")
-            && manifest.contains("source = \"freven.core:tint/color_map_2d_v1\"")
-            && manifest.contains("color_map_texture = \"freven.vanilla:textures/tint/grass_tint\""),
-        "grass overlay materials should be cutout and request image-backed grass tint"
+        soil_family.contains("texture = \"textures/soil_{fertility}\"")
+            && soil_family.contains("texture = \"textures/grass_sparse_side\"")
+            && soil_family.contains("texture = \"textures/grass_normal_top\"")
+            && soil_family.contains("source = \"freven.core:tint/color_map_2d_v1\"")
+            && soil_family.contains("color_map_texture = \"textures/tint/grass_tint\""),
+        "grass overlay material layers should use soil base textures plus image-backed grass tint"
     );
 
     for variant in [
@@ -486,8 +490,11 @@ fn vanilla_blocks_have_authored_model_and_visual_bindings() {
         "core_experiences/freven.vanilla/content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
     );
     assert!(
-        soil.contains("model = \"freven.vanilla:models/block/topsoil_overlay\""),
-        "Soil grass variants should bind to the topsoil_overlay model key"
+        soil.contains("model = \"freven.vanilla:models/block/cube_faces\"")
+            && soil.contains("[families.templates.variants.visual.materials]")
+            && soil.contains("side = \"block/soil_{fertility}_sparse_side\"")
+            && soil.contains("top = \"block/soil_{fertility}_normal_top\""),
+        "Soil grass variants should bind cube_faces to generated surface-layer material stacks"
     );
 }
 
