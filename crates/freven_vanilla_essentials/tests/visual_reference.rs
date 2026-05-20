@@ -346,9 +346,9 @@ fn vanilla_soil_grass_family_is_layered_topsoil_content() {
 
     assert!(
         manifest.contains("key = \"freven.vanilla:models/block/topsoil_overlay\"")
-            && manifest.contains("kind = \"cuboid_parts\"")
+            && manifest.contains("kind = \"layered_cube_faces\"")
             && manifest.contains("material_slots = [\"base\", \"grass_side\", \"grass_top\"]"),
-        "soil/grass family should use a reusable layered TopSoil cuboid_parts model"
+        "soil/grass family should use a reusable layered TopSoil layered_cube_faces model"
     );
 
     assert!(
@@ -461,9 +461,9 @@ fn vanilla_blocks_have_authored_model_and_visual_bindings() {
         "cube_faces terrain model must stay greedy-compatible"
     );
     assert!(
-        models[topsoil_idx..].contains("kind = \"cuboid_parts\"")
+        models[topsoil_idx..].contains("kind = \"layered_cube_faces\"")
             && models[topsoil_idx..].contains("[[models.parts]]"),
-        "topsoil overlay should remain authored cuboid part geometry"
+        "topsoil overlay should remain authored layered cube-face geometry"
     );
 
     let grass = read_repo_file(
