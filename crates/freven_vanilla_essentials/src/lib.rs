@@ -11,9 +11,10 @@
 
 pub(crate) use crate::blocks::STONE_KEY;
 use crate::blocks::{
-    COARSE_DIRT_KEY, DIRT_KEY, GLASS_KEY, GRANITE_KEY, GRASS_KEY, LIMESTONE_KEY,
-    SOIL_GRASS_VARIANT_COUNT, SOIL_GRASS_VARIANTS, coarse_dirt_def, dirt_def, glass_def,
-    granite_def, grass_def, limestone_def, soil_grass_variant_def, stone_def,
+    COARSE_DIRT_KEY, CREATIVE_LIGHT_VARIANT_COUNT, CREATIVE_LIGHT_VARIANTS, DIRT_KEY, GLASS_KEY,
+    GRANITE_KEY, GRASS_KEY, LIMESTONE_KEY, SOIL_GRASS_VARIANT_COUNT, SOIL_GRASS_VARIANTS,
+    coarse_dirt_def, creative_light_variant_def, dirt_def, glass_def, granite_def, grass_def,
+    limestone_def, soil_grass_variant_def, stone_def,
 };
 use freven_avatar_api::{
     AvatarControlRegistrationExt, AvatarControllerRegistrationExt, AvatarLifecycleRegistrationExt,
@@ -104,6 +105,7 @@ struct FlatBlockIds {
     soil_grass: [BlockRuntimeId; SOIL_GRASS_VARIANT_COUNT],
     soil_medium_normal: BlockRuntimeId,
     glass: BlockRuntimeId,
+    creative_lights: [BlockRuntimeId; CREATIVE_LIGHT_VARIANT_COUNT],
 }
 
 pub fn register(ctx: &mut ModContext<'_>) {
@@ -171,6 +173,15 @@ pub fn register(ctx: &mut ModContext<'_>) {
     }
     ctx.register_block(GLASS_KEY, glass_def())
         .expect("vanilla essentials must register freven.vanilla:glass block");
+    for variant in CREATIVE_LIGHT_VARIANTS {
+        ctx.register_block(variant.key, creative_light_variant_def(variant))
+            .unwrap_or_else(|err| {
+                panic!(
+                    "vanilla essentials must register creative light variant {}: {err}",
+                    variant.key
+                )
+            });
+    }
 
     let break_kind = ctx
         .register_action_kind(ACTION_KIND_BREAK_KEY)
@@ -490,6 +501,17 @@ impl VisualValidationWorldGen {
             block_id: ids.stone,
         });
 
+        // Authoritative voxel-light proof: Vanilla-authored creative lights in
+        // a roofed alcove. This validates content-driven block light metadata
+        // without engine hardcoding or Bevy scene-light truth.
+        for (index, block_id) in ids.creative_lights.iter().copied().enumerate() {
+            let x = 22 + i32::try_from(index).expect("creative light index fits i32");
+            output.writes.push(WorldTerrainWrite::SetBlock {
+                pos: (x, 8, 16).into(),
+                block_id,
+            });
+        }
+
         // Face-lighting reference steps expose top, side, and underside-ish
         // visual shading differences in the simple rc10 voxel renderer.
         output.writes.push(WorldTerrainWrite::FillBox {
@@ -546,6 +568,7 @@ impl WorldGenProvider for VisualValidationWorldGen {
 
 fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
     let mut soil_grass = [BlockRuntimeId(0); SOIL_GRASS_VARIANT_COUNT];
+    let mut creative_lights = [BlockRuntimeId(0); CREATIVE_LIGHT_VARIANT_COUNT];
     let mut soil_medium_normal = None;
 
     for (slot, variant) in soil_grass.iter_mut().zip(SOIL_GRASS_VARIANTS) {
@@ -561,6 +584,15 @@ fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
         }
 
         *slot = block_id;
+    }
+
+    for (slot, variant) in creative_lights.iter_mut().zip(CREATIVE_LIGHT_VARIANTS) {
+        *slot = init.block_id_by_key(variant.key).unwrap_or_else(|| {
+            panic!(
+                "vanilla essentials worldgen requires resolved creative light block id {}",
+                variant.key
+            )
+        });
     }
 
     FlatBlockIds {
@@ -588,6 +620,7 @@ fn resolve_flat_block_ids(init: &WorldGenInit) -> FlatBlockIds {
         glass: init
             .block_id_by_key(GLASS_KEY)
             .expect("vanilla essentials worldgen requires resolved glass block id"),
+        creative_lights,
     }
 }
 
@@ -624,6 +657,12 @@ mod worldgen_tests {
             init.block_ids.insert(
                 variant.key.to_string(),
                 BlockRuntimeId(8 + u32::try_from(index).expect("test index fits u32")),
+            );
+        }
+        for (index, variant) in CREATIVE_LIGHT_VARIANTS.iter().enumerate() {
+            init.block_ids.insert(
+                variant.key.to_string(),
+                BlockRuntimeId(17 + u32::try_from(index).expect("test index fits u32")),
             );
         }
         init
@@ -722,6 +761,16 @@ mod worldgen_tests {
                     WorldTerrainWrite::FillBox { block_id, .. } if *block_id == BlockRuntimeId(id)
                 )),
                 "visual validation scene should display generated soil/grass variant block id {id}"
+            );
+        }
+
+        for id in 17..=21 {
+            assert!(
+                output.writes.iter().any(|write| matches!(
+                    write,
+                    WorldTerrainWrite::SetBlock { block_id, .. } if *block_id == BlockRuntimeId(id)
+                )),
+                "visual validation scene should place creative light block id {id}"
             );
         }
     }

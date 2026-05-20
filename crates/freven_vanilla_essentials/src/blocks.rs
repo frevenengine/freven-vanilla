@@ -8,6 +8,49 @@ pub(crate) const GRASS_KEY: &str = "freven.vanilla:grass";
 pub(crate) const COARSE_DIRT_KEY: &str = "freven.vanilla:coarse_dirt";
 pub(crate) const GLASS_KEY: &str = "freven.vanilla:glass";
 
+pub(crate) const CREATIVE_LIGHT_VARIANT_COUNT: usize = 5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CreativeLightVariant {
+    pub(crate) id: &'static str,
+    pub(crate) key: &'static str,
+    pub(crate) fallback_material: &'static str,
+    pub(crate) debug_tint_rgba: u32,
+}
+
+pub(crate) const CREATIVE_LIGHT_VARIANTS: [CreativeLightVariant; CREATIVE_LIGHT_VARIANT_COUNT] = [
+    CreativeLightVariant {
+        id: "white",
+        key: "freven.vanilla:creative_light_white",
+        fallback_material: "freven.vanilla:block/creative_light_white",
+        debug_tint_rgba: 0xFFFF_FFFF,
+    },
+    CreativeLightVariant {
+        id: "warm",
+        key: "freven.vanilla:creative_light_warm",
+        fallback_material: "freven.vanilla:block/creative_light_warm",
+        debug_tint_rgba: 0xFFBC_60FF,
+    },
+    CreativeLightVariant {
+        id: "red",
+        key: "freven.vanilla:creative_light_red",
+        fallback_material: "freven.vanilla:block/creative_light_red",
+        debug_tint_rgba: 0xFF40_40FF,
+    },
+    CreativeLightVariant {
+        id: "green",
+        key: "freven.vanilla:creative_light_green",
+        fallback_material: "freven.vanilla:block/creative_light_green",
+        debug_tint_rgba: 0x50FF_60FF,
+    },
+    CreativeLightVariant {
+        id: "blue",
+        key: "freven.vanilla:creative_light_blue",
+        fallback_material: "freven.vanilla:block/creative_light_blue",
+        debug_tint_rgba: 0x5080_FFFF,
+    },
+];
+
 pub(crate) const SOIL_GRASS_VARIANT_COUNT: usize = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +164,11 @@ pub(crate) fn soil_grass_variant_def(variant: VanillaBlockVariant) -> BlockDescr
 }
 
 #[inline]
+pub(crate) fn creative_light_variant_def(variant: CreativeLightVariant) -> BlockDescriptor {
+    BlockDescriptor::solid_material_cube(variant.fallback_material, variant.debug_tint_rgba)
+}
+
+#[inline]
 pub(crate) fn glass_def() -> BlockDescriptor {
     BlockDescriptor::material_cube(
         true,
@@ -150,6 +198,11 @@ mod tests {
         for def in baseline
             .into_iter()
             .chain(SOIL_GRASS_VARIANTS.into_iter().map(soil_grass_variant_def))
+            .chain(
+                CREATIVE_LIGHT_VARIANTS
+                    .into_iter()
+                    .map(creative_light_variant_def),
+            )
         {
             assert!(def.is_solid());
             assert!(def.is_opaque());
@@ -168,6 +221,21 @@ mod tests {
                 variant
                     .fallback_material
                     .starts_with("freven.vanilla:block/soil_")
+            );
+            assert!(variant.debug_tint_rgba & 0xFF == 0xFF);
+        }
+    }
+
+    #[test]
+    fn creative_light_variants_have_stable_material_fallbacks() {
+        assert_eq!(CREATIVE_LIGHT_VARIANTS.len(), CREATIVE_LIGHT_VARIANT_COUNT);
+
+        for variant in CREATIVE_LIGHT_VARIANTS {
+            assert!(variant.key.starts_with("freven.vanilla:creative_light_"));
+            assert!(
+                variant
+                    .fallback_material
+                    .starts_with("freven.vanilla:block/creative_light_")
             );
             assert!(variant.debug_tint_rgba & 0xFF == 0xFF);
         }
