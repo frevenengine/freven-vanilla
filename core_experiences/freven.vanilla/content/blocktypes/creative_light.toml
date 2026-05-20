@@ -1,0 +1,30 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "variant_family"
+code = "creative_light"
+display = "Creative Light"
+shape = "freven.vanilla:shapes/block/cube"
+variant_group = "content/worldproperties/creative_light.toml"
+tags = ["freven:light_blocks", "freven:creative_lights"]
+
+[templates.material]
+key = "block/creative_light_{creative_light}"
+texture = "textures/creative_light_{creative_light}"
+fallback_debug_tint_rgba = "{creative_light.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[templates.material.lighting]
+lighting_model = "lit"
+emissive_rgba = "{creative_light.light_rgba}"
+emissive_strength_milli = 2500
+emits_light = true
+light_color_rgba = "{creative_light.light_rgba}"
+light_intensity_u8 = "{creative_light.light_intensity_u8}"
+light_opacity_u8 = 255
+light_transmission_u8 = 0
+authority = "server_required"
+
+[templates.visual]
+key = "visuals/block/creative_light_{creative_light}"
+target = "creative_light_{creative_light}"
+shape = "freven.vanilla:shapes/block/cube"
+material = "block/creative_light_{creative_light}"

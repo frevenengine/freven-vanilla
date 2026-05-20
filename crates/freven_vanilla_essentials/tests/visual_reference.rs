@@ -6,6 +6,7 @@ const VANILLA_CONTENT_MANIFEST_ROOT: &str = "core_experiences/freven.vanilla/con
 const VANILLA_CONTENT_MANIFEST_INCLUDES: &[&str] = &[
     "content/textures/terrain.toml",
     "content/textures/tint.toml",
+    "content/textures/lights.toml",
     "content/_compiled/vanilla_blocktypes_v1/models/common.toml",
     "content/_compiled/vanilla_blocktypes_v1/blocktypes/coarse_dirt.toml",
     "content/_compiled/vanilla_blocktypes_v1/blocktypes/dirt.toml",
@@ -13,6 +14,7 @@ const VANILLA_CONTENT_MANIFEST_INCLUDES: &[&str] = &[
     "content/_compiled/vanilla_blocktypes_v1/blocktypes/glass.toml",
     "content/_compiled/vanilla_blocktypes_v1/families/rock.toml",
     "content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+    "content/_compiled/vanilla_blocktypes_v1/families/creative_light.toml",
     "content/_compiled/vanilla_blocktypes_v1/tags/terrain.toml",
 ];
 
@@ -22,8 +24,10 @@ const VANILLA_HIGH_LEVEL_AUTHORING_SOURCES: &[&str] = &[
     "content/blocktypes/grass.toml",
     "content/blocktypes/glass.toml",
     "content/blocktypes/rock.toml",
+    "content/blocktypes/creative_light.toml",
     "content/blocktypes/soil.toml",
     "content/worldproperties/rock.toml",
+    "content/worldproperties/creative_light.toml",
     "content/worldproperties/fertility.toml",
     "content/worldproperties/grass_coverage.toml",
     "content/shapes/block/cube.toml",
@@ -38,6 +42,26 @@ const TEXTURES: &[(&str, &str)] = &[
     ),
     ("freven.vanilla:textures/dirt", "textures/dirt.png"),
     ("freven.vanilla:textures/glass", "textures/glass.png"),
+    (
+        "freven.vanilla:textures/creative_light_white",
+        "textures/creative_light_white.png",
+    ),
+    (
+        "freven.vanilla:textures/creative_light_warm",
+        "textures/creative_light_warm.png",
+    ),
+    (
+        "freven.vanilla:textures/creative_light_red",
+        "textures/creative_light_red.png",
+    ),
+    (
+        "freven.vanilla:textures/creative_light_green",
+        "textures/creative_light_green.png",
+    ),
+    (
+        "freven.vanilla:textures/creative_light_blue",
+        "textures/creative_light_blue.png",
+    ),
     ("freven.vanilla:textures/granite", "textures/granite.png"),
     ("freven.vanilla:textures/grass", "textures/grass.png"),
     (

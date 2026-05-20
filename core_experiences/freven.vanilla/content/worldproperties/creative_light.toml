@@ -1,0 +1,38 @@
+profile = "freven.vanilla:blocktypes_v1"
+kind = "worldproperty"
+code = "creative_light"
+
+[[variants]]
+id = "white"
+display = "White"
+fallback_tint_rgba = "FFFFFFFF"
+light_rgba = "FFFFFFFF"
+light_intensity_u8 = 15
+
+[[variants]]
+id = "warm"
+display = "Warm"
+fallback_tint_rgba = "FFBC60FF"
+light_rgba = "FFBC60FF"
+light_intensity_u8 = 14
+
+[[variants]]
+id = "red"
+display = "Red"
+fallback_tint_rgba = "FF4040FF"
+light_rgba = "FF4040FF"
+light_intensity_u8 = 15
+
+[[variants]]
+id = "green"
+display = "Green"
+fallback_tint_rgba = "50FF60FF"
+light_rgba = "50FF60FF"
+light_intensity_u8 = 15
+
+[[variants]]
+id = "blue"
+display = "Blue"
+fallback_tint_rgba = "5080FFFF"
+light_rgba = "5080FFFF"
+light_intensity_u8 = 15

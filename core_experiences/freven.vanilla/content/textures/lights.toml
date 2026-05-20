@@ -1,0 +1,26 @@
+schema = 1
+
+[[textures]]
+key = "freven.vanilla:textures/creative_light_white"
+path = "textures/creative_light_white.png"
+sha256 = "245a82e115217ea58a29329710f13d48617347f30d71db98f8c7657ad7b696d5"
+
+[[textures]]
+key = "freven.vanilla:textures/creative_light_warm"
+path = "textures/creative_light_warm.png"
+sha256 = "46e99f964dab3c5824a5cbfee072d81047a730b3a93ef72f04c164e434b62a5f"
+
+[[textures]]
+key = "freven.vanilla:textures/creative_light_red"
+path = "textures/creative_light_red.png"
+sha256 = "1153dd584cfc1def61462e2223c7b0af8d20c8b7fa7d3cc773130b404da8b082"
+
+[[textures]]
+key = "freven.vanilla:textures/creative_light_green"
+path = "textures/creative_light_green.png"
+sha256 = "b1c1d0232e2822f5d387147577a1a872aa5ce6553d652ccce3bb15d24596c49a"
+
+[[textures]]
+key = "freven.vanilla:textures/creative_light_blue"
+path = "textures/creative_light_blue.png"
+sha256 = "0621d5c9402bafe5343358091b5f5789865de57dbc3fc529b29b3deb4d7642fb"

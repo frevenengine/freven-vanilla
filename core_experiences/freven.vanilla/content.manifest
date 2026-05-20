@@ -3,6 +3,7 @@ entries = []
 includes = [
   "content/textures/terrain.toml",
   "content/textures/tint.toml",
+  "content/textures/lights.toml",
   "content/_compiled/vanilla_blocktypes_v1/models/common.toml",
   "content/_compiled/vanilla_blocktypes_v1/blocktypes/coarse_dirt.toml",
   "content/_compiled/vanilla_blocktypes_v1/blocktypes/dirt.toml",
@@ -10,5 +11,6 @@ includes = [
   "content/_compiled/vanilla_blocktypes_v1/blocktypes/glass.toml",
   "content/_compiled/vanilla_blocktypes_v1/families/rock.toml",
   "content/_compiled/vanilla_blocktypes_v1/families/soil_grass.toml",
+  "content/_compiled/vanilla_blocktypes_v1/families/creative_light.toml",
   "content/_compiled/vanilla_blocktypes_v1/tags/terrain.toml",
 ]

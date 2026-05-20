@@ -1,0 +1,220 @@
+schema = 1
+# generated_from_profile = "freven.vanilla:blocktypes_v1"
+# generated output is canonical content graph, not authoring source
+
+[[families]]
+key = "freven.vanilla:families/creative_light"
+
+[families.family]
+kind = "content_family"
+namespace = "freven.vanilla"
+description = "Generated from freven.vanilla:blocktypes_v1 rock blocktype source."
+
+[[families.axes]]
+name = "creative_light"
+
+[[families.axes.values]]
+id = "white"
+display = "White"
+fallback_tint_rgba = "FFFFFFFF"
+light_intensity_u8 = 15
+light_rgba = "FFFFFFFF"
+
+[[families.axes.values]]
+id = "warm"
+display = "Warm"
+fallback_tint_rgba = "FFBC60FF"
+light_intensity_u8 = 14
+light_rgba = "FFBC60FF"
+
+[[families.axes.values]]
+id = "red"
+display = "Red"
+fallback_tint_rgba = "FF4040FF"
+light_intensity_u8 = 15
+light_rgba = "FF4040FF"
+
+[[families.axes.values]]
+id = "green"
+display = "Green"
+fallback_tint_rgba = "50FF60FF"
+light_intensity_u8 = 15
+light_rgba = "50FF60FF"
+
+[[families.axes.values]]
+id = "blue"
+display = "Blue"
+fallback_tint_rgba = "5080FFFF"
+light_intensity_u8 = 15
+light_rgba = "5080FFFF"
+
+[families.templates.material]
+key = "block/creative_light_{creative_light}"
+texture = "textures/creative_light_{creative_light}"
+fallback_debug_tint_rgba = "{creative_light.fallback_tint_rgba}"
+render_layer = "opaque"
+
+[families.templates.material.lighting]
+lighting_model = "lit"
+emissive_rgba = "{creative_light.light_rgba}"
+emissive_strength_milli = 2500
+emits_light = true
+light_color_rgba = "{creative_light.light_rgba}"
+light_intensity_u8 = "{creative_light.light_intensity_u8}"
+light_opacity_u8 = 255
+light_transmission_u8 = 0
+authority = "server_required"
+
+[families.templates.visual]
+key = "visuals/block/creative_light_{creative_light}"
+target = "creative_light_{creative_light}"
+model = "freven.vanilla:models/block/cube_all"
+material = "block/creative_light_{creative_light}"
+
+[[families.templates.tags]]
+tag = "freven:light_blocks"
+value = "{creative_light}"
+
+[[families.templates.tags]]
+tag = "freven:creative_lights"
+value = "{creative_light}"
+
+
+[[block_shapes]]
+target = "freven.vanilla:creative_light_white"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:creative_light_warm"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:creative_light_red"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:creative_light_green"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+
+[[block_shapes]]
+target = "freven.vanilla:creative_light_blue"
+
+[block_shapes.occludes]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[block_shapes.side_solid]
+bottom = true
+top = true
+north = true
+south = true
+east = true
+west = true
+
+[[block_shapes.collision_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
+
+[[block_shapes.selection_boxes]]
+min = [0.0, 0.0, 0.0]
+max = [1.0, 1.0, 1.0]
