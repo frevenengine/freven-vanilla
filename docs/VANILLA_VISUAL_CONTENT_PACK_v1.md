@@ -20,7 +20,7 @@ The v1 pack includes these Vanilla block visuals:
 | `freven.vanilla:coarse_dirt` | `freven.vanilla:visuals/block/coarse_dirt` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/coarse_dirt` | First soil-style variant. |
 | `freven.vanilla:grass` | `freven.vanilla:visuals/block/grass` | `freven.vanilla:models/block/cube_faces` | `top`, `side`, `bottom` | Legacy per-face authored grass sample. |
 | `freven.vanilla:soil_{fertility}_bare` | `freven.vanilla:visuals/block/soil_{fertility}_bare` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/soil_{fertility}` | Generated bare soil cube variants. |
-| `freven.vanilla:soil_{fertility}_{sparse,normal}` | `freven.vanilla:visuals/block/soil_{fertility}_{sparse,normal}` | `freven.vanilla:models/block/topsoil_overlay` | `base`, `grass_top`, `grass_side` | Generated TopSoil-style variants with neutral cutout grass overlays and image-backed grass tint. |
+| `freven.vanilla:soil_{fertility}_{sparse,normal}` | `freven.vanilla:visuals/block/soil_{fertility}_{sparse,normal}` | `freven.vanilla:models/block/cube_faces` | `bottom`, `side`, `top` | Generated TopSoil-style variants using soil base materials plus grass surface material layers with image-backed grass tint. |
 | `freven.vanilla:glass` | `freven.vanilla:visuals/block/glass` | `freven.vanilla:models/block/cube_all` | `all = freven.vanilla:block/glass` | Solid collision, non-opaque visibility, transparent render layer. |
 
 ## Texture policy
@@ -90,27 +90,33 @@ The side material intentionally reuses the authored 32x32 coarse-dirt texture
 for the legacy rc10 proof, making the per-face binding obvious without adding
 final grass-side art there.
 
-The generated soil/grass family uses layered TopSoil visuals instead: bare
-variants bind one soil material to `cube_all`, while sparse/normal variants bind
-soil base plus neutral alpha grass top/side overlays to
-`freven.vanilla:models/block/topsoil_overlay`.
+The generated soil/grass family uses surface material layers: bare variants
+bind one soil material to `cube_all`, while sparse/normal variants use the
+greedy-compatible `cube_faces` model. Their bottom face binds the base soil
+material, and their side/top faces bind generated soil materials with a
+`grass_overlay` surface layer.
 
-The TopSoil overlay model uses first-class `overlay = true` face metadata for
-grass top/side faces instead of authored geometry offsets such as `-0.001` or
-`1.001`.
-
-Grass overlay materials declare:
+Generated TopSoil side/top materials keep the soil texture as the base layer and
+add grass masks through `surface_layers`:
 
 ~~~toml
-render_layer = "cutout"
-alpha_cutoff_u8 = 96
+texture = "textures/soil_{fertility}"
+render_layer = "opaque"
 
-[...tint]
+[[...surface_layers]]
+name = "grass_overlay"
+texture = "textures/grass_{coverage}_{face}"
+blend = "alpha_over"
+tint_sampling = "world_xz"
+
+[...surface_layers.tint]
 source = "freven.core:tint/color_map_2d_v1"
-color_map_texture = "freven.vanilla:textures/tint/grass_tint"
+color_map_texture = "textures/tint/grass_tint"
 ~~~
 
 That tint source is generic engine visual metadata, not a Vanilla grass hardcode.
+The reusable `topsoil_overlay` / `layered_cube_faces` model remains available for
+real layered geometry, but ordinary grass coverage is a material-layer feature.
 
 Glass declares:
 
@@ -225,7 +231,7 @@ The Vanilla repo keeps regression tests for:
 - texture file existence and 32x32 RGBA baseline shape;
 - transparent glass material policy;
 - grass top/side/bottom authored material slots;
-- generated soil/grass fertility/coverage variants, including bare cube_all visuals and sparse/normal layered TopSoil overlays;
+- generated soil/grass fertility/coverage variants, including bare cube_all visuals and sparse/normal cube_faces visuals with surface material layers;
 - block descriptors using material keys rather than debug-only colors;
 - README/docs links for the visual reference and content pack.
 

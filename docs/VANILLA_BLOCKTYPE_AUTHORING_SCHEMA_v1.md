@@ -108,8 +108,8 @@ Conceptual shape:
     [blocktype]
     code = "soil"
     class = "freven.vanilla:soil"
-    shape = "freven.vanilla:shapes/block/topsoil"
-    draw = "topsoil"
+    shape = "freven.vanilla:shapes/block/cube_faces"
+    draw = "terrain_surface_layers"
 
     [[variantgroups]]
     code = "fertility"
@@ -121,11 +121,11 @@ Conceptual shape:
 
     [textures]
     base = "freven.vanilla:textures/soil_{fertility}"
-    grass_top = "freven.vanilla:textures/grass_{coverage}_top"
-    grass_side = "freven.vanilla:textures/grass_{coverage}_side"
+    grass_top_overlay = "freven.vanilla:textures/grass_{coverage}_top"
+    grass_side_overlay = "freven.vanilla:textures/grass_{coverage}_side"
 
     [visual]
-    model = "freven.vanilla:models/block/topsoil_overlay"
+    model = "freven.vanilla:models/block/cube_faces"
 
     [tags]
     add = ["freven:soils", "freven:terrain_solids"]
@@ -184,22 +184,26 @@ Conceptual TopSoil example:
     profile = "freven.vanilla:blocktypes_v1"
 
     [shape]
-    code = "topsoil"
-    kind = "cuboid_parts"
-    material_slots = ["base", "grass_side", "grass_top"]
+    code = "cube_faces"
+    kind = "cube_faces"
+    material_slots = ["bottom", "side", "top"]
 
-    [[parts]]
-    name = "base"
-    from = [0.0, 0.0, 0.0]
-    to = [1.0, 1.0, 1.0]
+    [materials.side]
+    texture = "textures/soil_{fertility}"
 
-    [[parts]]
+    [[materials.side.surface_layers]]
     name = "grass_overlay"
-    from = [0.0, 0.0, 0.0]
-    to = [1.0, 1.0, 1.0]
-    overlay = true
+    texture = "textures/grass_{coverage}_side"
+    blend = "alpha_over"
+    tint_sampling = "world_xz"
 
-The compiler maps shapes to canonical `[[models]]` entries.
+    [materials.side.surface_layers.tint]
+    source = "freven.core:tint/color_map_2d_v1"
+    color_map_texture = "textures/tint/grass_tint"
+
+The compiler maps shapes to canonical `[[models]]` entries and maps material
+surface layers to generated material templates. Use `layered_cube_faces`,
+`cuboid_parts`, decals, or custom meshes only for real geometry layers.
 
 Renderer handles, atlas coordinates, GPU state, and runtime ids are not valid
 shape authoring fields.
@@ -222,9 +226,9 @@ Conceptual example:
 
     [textures_by_type]
     "soil-*-bare".all = "freven.vanilla:textures/soil_{fertility}"
-    "soil-*-sparse".base = "freven.vanilla:textures/soil_{fertility}"
-    "soil-*-sparse".grass_top = "freven.vanilla:textures/grass_sparse_top"
-    "soil-*-normal".grass_top = "freven.vanilla:textures/grass_normal_top"
+    "soil-*-sparse".bottom = "freven.vanilla:textures/soil_{fertility}"
+    "soil-*-sparse".side.surface_layers.grass_overlay = "freven.vanilla:textures/grass_sparse_side"
+    "soil-*-normal".top.surface_layers.grass_overlay = "freven.vanilla:textures/grass_normal_top"
 
 The compiler expands these rules into canonical materials and block visual
 bindings.
@@ -343,9 +347,9 @@ Example:
     error: duplicate generated material key
     profile: freven.vanilla:blocktypes_v1
     source: content/blocktypes/soil.toml
-    field: textures.grass_top
+    field: materials.top.surface_layers.grass_overlay.texture
     generated declaration: materials
-    key: freven.vanilla:block/grass_normal_top
+    key: freven.vanilla:block/soil_{fertility}_normal_top
     first source: content/blocktypes/grass.toml
     second source: content/blocktypes/soil.toml
     fix: move the shared material to a common source file or rename the generated key

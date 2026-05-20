@@ -686,6 +686,37 @@ impl CompilerState {
             self.emit_line("[[families.templates.variants]]");
             self.emit_line(&format!("coverage = \"{coverage}\""));
             self.emit_line("");
+
+            if coverage != "bare" {
+                for face in ["side", "top"] {
+                    self.emit_line(&format!("[families.templates.variants.materials.{face}]"));
+                    self.emit_line(&format!(
+                        "key = \"block/soil_{{fertility}}_{coverage}_{face}\""
+                    ));
+                    self.emit_line("texture = \"textures/soil_{fertility}\"");
+                    self.emit_line("fallback_debug_tint_rgba = \"{fertility.fallback_tint_rgba}\"");
+                    self.emit_line("render_layer = \"opaque\"");
+                    self.emit_line("");
+                    self.emit_line(&format!(
+                        "[[families.templates.variants.materials.{face}.surface_layers]]"
+                    ));
+                    self.emit_line("name = \"grass_overlay\"");
+                    self.emit_line(&format!("texture = \"textures/grass_{coverage}_{face}\""));
+                    self.emit_line("blend = \"alpha_over\"");
+                    self.emit_line("tint_sampling = \"world_xz\"");
+                    self.emit_line("");
+                    self.emit_line(&format!(
+                        "[families.templates.variants.materials.{face}.surface_layers.tint]"
+                    ));
+                    self.emit_line("source = \"freven.core:tint/color_map_2d_v1\"");
+                    self.emit_line("color_map_texture = \"textures/tint/grass_tint\"");
+                    self.emit_line(&format!(
+                        "fallback_tint_rgba = \"{{coverage.{face}_fallback_tint_rgba}}\""
+                    ));
+                    self.emit_line("");
+                }
+            }
+
             self.emit_line("[families.templates.variants.visual]");
             self.emit_line(&format!(
                 "key = \"visuals/block/soil_{{fertility}}_{coverage}\""
@@ -695,12 +726,16 @@ impl CompilerState {
                 self.emit_line("model = \"freven.vanilla:models/block/cube_all\"");
                 self.emit_line("material = \"block/soil_{fertility}\"");
             } else {
-                self.emit_line("model = \"freven.vanilla:models/block/topsoil_overlay\"");
+                self.emit_line("model = \"freven.vanilla:models/block/cube_faces\"");
                 self.emit_line("");
                 self.emit_line("[families.templates.variants.visual.materials]");
-                self.emit_line("base = \"block/soil_{fertility}\"");
-                self.emit_line(&format!("grass_side = \"block/grass_{coverage}_side\""));
-                self.emit_line(&format!("grass_top = \"block/grass_{coverage}_top\""));
+                self.emit_line("bottom = \"block/soil_{fertility}\"");
+                self.emit_line(&format!(
+                    "side = \"block/soil_{{fertility}}_{coverage}_side\""
+                ));
+                self.emit_line(&format!(
+                    "top = \"block/soil_{{fertility}}_{coverage}_top\""
+                ));
             }
             self.emit_line("");
             self.emit_line("[[families.templates.variants.tags]]");
