@@ -14,7 +14,7 @@ material_slots = ["bottom", "side", "top"]
 
 [[models]]
 key = "freven.vanilla:models/block/topsoil_overlay"
-kind = "cuboid_parts"
+kind = "layered_cube_faces"
 material_slots = ["base", "grass_side", "grass_top"]
 
 [[models.parts]]

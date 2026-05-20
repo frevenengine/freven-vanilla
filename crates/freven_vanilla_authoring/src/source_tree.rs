@@ -547,7 +547,12 @@ impl SourceTreeCompiler {
                 _ => {}
             }
 
-            out.push_str("kind = \"cuboid_parts\"\n");
+            let model_kind = if shape.doc.code == "block/topsoil" {
+                "layered_cube_faces"
+            } else {
+                "cuboid_parts"
+            };
+            out.push_str(&format!("kind = \"{model_kind}\"\n"));
             if !shape.doc.material_slots.is_empty() {
                 out.push_str(&format!(
                     "material_slots = [{}]\n",
