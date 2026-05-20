@@ -182,6 +182,30 @@ struct CubeBlockDoc {
     alpha_cutoff_u8: Option<u8>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    lighting: Option<MaterialLightingDoc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MaterialLightingDoc {
+    #[serde(default = "default_lighting_model")]
+    lighting_model: String,
+    #[serde(default)]
+    emissive_rgba: Option<u32>,
+    #[serde(default)]
+    emissive_strength_milli: u16,
+    #[serde(default)]
+    emits_light: bool,
+    #[serde(default = "default_light_color_rgba")]
+    light_color_rgba: u32,
+    #[serde(default)]
+    light_intensity_u8: u8,
+    #[serde(default = "default_light_opacity_u8")]
+    light_opacity_u8: u8,
+    #[serde(default)]
+    light_transmission_u8: u8,
+    #[serde(default = "default_light_authority")]
+    authority: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -264,6 +288,30 @@ struct TemplateMaterial {
     fallback_debug_tint_rgba: String,
     #[serde(default = "opaque_layer")]
     render_layer: String,
+    #[serde(default)]
+    lighting: Option<TemplateMaterialLightingDoc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TemplateMaterialLightingDoc {
+    #[serde(default = "default_lighting_model")]
+    lighting_model: String,
+    #[serde(default)]
+    emissive_rgba: Option<toml::Value>,
+    #[serde(default)]
+    emissive_strength_milli: Option<toml::Value>,
+    #[serde(default)]
+    emits_light: Option<toml::Value>,
+    #[serde(default)]
+    light_color_rgba: Option<toml::Value>,
+    #[serde(default)]
+    light_intensity_u8: Option<toml::Value>,
+    #[serde(default)]
+    light_opacity_u8: Option<toml::Value>,
+    #[serde(default)]
+    light_transmission_u8: Option<toml::Value>,
+    #[serde(default = "default_light_authority")]
+    authority: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -295,10 +343,28 @@ struct WorldPropertyVariant {
     top_fallback_tint_rgba: Option<String>,
     #[serde(default)]
     side_fallback_tint_rgba: Option<String>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, toml::Value>,
 }
 
 fn opaque_layer() -> String {
     "opaque".to_string()
+}
+
+fn default_lighting_model() -> String {
+    "lit".to_string()
+}
+
+fn default_light_color_rgba() -> u32 {
+    0xFFFF_FFFF
+}
+
+fn default_light_opacity_u8() -> u8 {
+    255
+}
+
+fn default_light_authority() -> String {
+    "visual_only".to_string()
 }
 
 #[derive(Debug)]
@@ -636,6 +702,7 @@ impl SourceTreeCompiler {
             block.fallback_debug_tint_rgba
         ));
         emit_render_layer(&mut out, &block.render_layer, block.alpha_cutoff_u8);
+        emit_material_lighting(&mut out, block.lighting.as_ref());
         out.push('\n');
 
         out.push_str("\n[[block_visuals]]\n");
@@ -766,12 +833,15 @@ impl SourceTreeCompiler {
         shapes: &[Loaded<ShapeDoc>],
     ) -> Result<String, SourceTreeCompileError> {
         let family_key = format!("freven.vanilla:families/{}", family.code);
+        let axis_name = family.code.as_str();
         let shape = shape_doc_for_ref(shapes, &family.templates.visual.shape, Path::new(rel))?;
 
         for variant in variants {
+            let target =
+                render_variant_family_template(&family.templates.visual.target, axis_name, variant);
             self.add_declaration(
                 GeneratedDeclarationKind::BlockShape,
-                format!("freven.vanilla:{}", variant.id),
+                format!("freven.vanilla:{target}"),
                 AuthoringSourceRef::new(rel, AuthoringSourceKind::Blocktype, "templates.shape"),
             )?;
         }
@@ -808,7 +878,7 @@ impl SourceTreeCompiler {
         out.push_str("description = \"Generated from freven.vanilla:blocktypes_v1 rock blocktype source.\"\n\n");
 
         out.push_str("[[families.axes]]\n");
-        out.push_str("name = \"rock\"\n\n");
+        out.push_str(&format!("name = \"{axis_name}\"\n\n"));
 
         for variant in variants {
             out.push_str("[[families.axes.values]]\n");
@@ -819,6 +889,11 @@ impl SourceTreeCompiler {
             }
             if let Some(group) = &variant.rock_group {
                 out.push_str(&format!("rock_group = \"{group}\"\n"));
+            }
+            for (key, value) in &variant.extra {
+                if let Some(rendered) = toml_scalar_value_to_toml(value) {
+                    out.push_str(&format!("{key} = {rendered}\n"));
+                }
             }
             out.push('\n');
         }
@@ -843,13 +918,15 @@ impl SourceTreeCompiler {
         for tag in &family.tags {
             out.push_str("[[families.templates.tags]]\n");
             out.push_str(&format!("tag = \"{tag}\"\n"));
-            out.push_str("value = \"{rock}\"\n\n");
+            out.push_str(&format!("value = \"{{{axis_name}}}\"\n\n"));
         }
 
         for variant in variants {
+            let target =
+                render_variant_family_template(&family.templates.visual.target, axis_name, variant);
             emit_block_shape(
                 &mut out,
-                &format!("freven.vanilla:{}", variant.id),
+                &format!("freven.vanilla:{target}"),
                 shape,
                 shape.occludes,
             );
@@ -1365,6 +1442,58 @@ fn model_key_for_shape_code(code: &str) -> String {
     format!("freven.vanilla:models/block/{suffix}")
 }
 
+fn render_variant_family_template(
+    template: &str,
+    axis_name: &str,
+    variant: &WorldPropertyVariant,
+) -> String {
+    let mut rendered = template
+        .replace(&format!("{{{axis_name}}}"), &variant.id)
+        .replace(&format!("{{{axis_name}.id}}"), &variant.id)
+        .replace(&format!("{{{axis_name}.display}}"), &variant.display);
+
+    if let Some(value) = &variant.fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.fallback_tint_rgba}}"), value);
+    }
+    if let Some(value) = &variant.rock_group {
+        rendered = rendered.replace(&format!("{{{axis_name}.rock_group}}"), value);
+    }
+    if let Some(value) = &variant.top_fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.top_fallback_tint_rgba}}"), value);
+    }
+    if let Some(value) = &variant.side_fallback_tint_rgba {
+        rendered = rendered.replace(&format!("{{{axis_name}.side_fallback_tint_rgba}}"), value);
+    }
+
+    for (key, value) in &variant.extra {
+        if let Some(value) = toml_scalar_value_to_template_string(value) {
+            rendered = rendered.replace(&format!("{{{axis_name}.{key}}}"), &value);
+        }
+    }
+
+    rendered
+}
+
+fn toml_scalar_value_to_template_string(value: &toml::Value) -> Option<String> {
+    match value {
+        toml::Value::String(value) => Some(value.clone()),
+        toml::Value::Integer(value) => Some(value.to_string()),
+        toml::Value::Float(value) => Some(value.to_string()),
+        toml::Value::Boolean(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn toml_scalar_value_to_toml(value: &toml::Value) -> Option<String> {
+    match value {
+        toml::Value::String(value) => Some(format!("\"{}\"", escape_toml_string(value))),
+        toml::Value::Integer(value) => Some(value.to_string()),
+        toml::Value::Float(value) => Some(value.to_string()),
+        toml::Value::Boolean(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
 fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
     out.push_str("[families.templates.material]\n");
     out.push_str(&format!("key = \"{}\"\n", material.key));
@@ -1374,6 +1503,72 @@ fn emit_template_material(out: &mut String, material: &TemplateMaterial) {
         material.fallback_debug_tint_rgba
     ));
     out.push_str(&format!("render_layer = \"{}\"\n", material.render_layer));
+    emit_template_material_lighting(out, material.lighting.as_ref());
+}
+
+fn emit_template_material_lighting(
+    out: &mut String,
+    lighting: Option<&TemplateMaterialLightingDoc>,
+) {
+    let Some(lighting) = lighting else {
+        return;
+    };
+
+    out.push_str("\n[families.templates.material.lighting]\n");
+    out.push_str(&format!(
+        "lighting_model = \"{}\"\n",
+        lighting.lighting_model
+    ));
+
+    emit_template_value(out, "emissive_rgba", lighting.emissive_rgba.as_ref());
+    emit_template_value(
+        out,
+        "emissive_strength_milli",
+        lighting.emissive_strength_milli.as_ref(),
+    );
+    emit_template_value(out, "emits_light", lighting.emits_light.as_ref());
+    emit_template_value(out, "light_color_rgba", lighting.light_color_rgba.as_ref());
+    emit_template_value(
+        out,
+        "light_intensity_u8",
+        lighting.light_intensity_u8.as_ref(),
+    );
+    emit_template_value(out, "light_opacity_u8", lighting.light_opacity_u8.as_ref());
+    emit_template_value(
+        out,
+        "light_transmission_u8",
+        lighting.light_transmission_u8.as_ref(),
+    );
+
+    out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
+}
+
+fn emit_template_value(out: &mut String, key: &str, value: Option<&toml::Value>) {
+    let Some(value) = value else {
+        return;
+    };
+
+    match value {
+        toml::Value::String(value) => {
+            out.push_str(&format!("{key} = \"{}\"\n", escape_toml_string(value)));
+        }
+        toml::Value::Integer(value) => {
+            out.push_str(&format!("{key} = {value}\n"));
+        }
+        toml::Value::Boolean(value) => {
+            out.push_str(&format!("{key} = {value}\n"));
+        }
+        other => {
+            out.push_str(&format!(
+                "# unsupported template value for {key}: {}\n",
+                other.type_str()
+            ));
+        }
+    }
+}
+
+fn escape_toml_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn emit_topsoil_surface_material_template(out: &mut String, coverage: &str, face: &str) {
@@ -1401,6 +1596,45 @@ fn emit_topsoil_surface_material_template(out: &mut String, coverage: &str, face
     out.push_str(&format!(
         "fallback_tint_rgba = \"{{coverage.{face}_fallback_tint_rgba}}\"\n\n"
     ));
+}
+
+fn emit_material_lighting(out: &mut String, lighting: Option<&MaterialLightingDoc>) {
+    let Some(lighting) = lighting else {
+        return;
+    };
+
+    out.push_str("\n[materials.lighting]\n");
+    out.push_str(&format!(
+        "lighting_model = \"{}\"\n",
+        lighting.lighting_model
+    ));
+
+    if let Some(emissive_rgba) = lighting.emissive_rgba {
+        out.push_str(&format!("emissive_rgba = {emissive_rgba}\n"));
+    }
+
+    out.push_str(&format!(
+        "emissive_strength_milli = {}\n",
+        lighting.emissive_strength_milli
+    ));
+    out.push_str(&format!("emits_light = {}\n", lighting.emits_light));
+    out.push_str(&format!(
+        "light_color_rgba = {}\n",
+        lighting.light_color_rgba
+    ));
+    out.push_str(&format!(
+        "light_intensity_u8 = {}\n",
+        lighting.light_intensity_u8
+    ));
+    out.push_str(&format!(
+        "light_opacity_u8 = {}\n",
+        lighting.light_opacity_u8
+    ));
+    out.push_str(&format!(
+        "light_transmission_u8 = {}\n",
+        lighting.light_transmission_u8
+    ));
+    out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
 }
 
 fn emit_render_layer(out: &mut String, layer: &str, alpha_cutoff_u8: Option<u8>) {
