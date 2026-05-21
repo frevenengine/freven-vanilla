@@ -7,3 +7,10 @@ texture = "freven.vanilla:textures/glass"
 fallback_debug_tint_rgba = 2161704908
 render_layer = "transparent"
 tags = ["freven:transparent_blocks", "freven:glass"]
+
+[lighting]
+lighting_model = "lit"
+light_opacity_u8 = 0
+light_transmission_u8 = 255
+light_transmission_tint_rgba = 4294967295
+authority = "server_required"

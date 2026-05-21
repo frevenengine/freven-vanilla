@@ -443,11 +443,22 @@ fn vanilla_glass_material_is_authored_as_transparent_content() {
 key = "freven.vanilla:block/glass"
 texture = "freven.vanilla:textures/glass"
 fallback_debug_tint_rgba = 2161704908
-render_layer = "transparent""#;
+render_layer = "transparent"
+
+[materials.lighting]
+lighting_model = "lit"
+emissive_strength_milli = 0
+emits_light = false
+light_color_rgba = 4294967295
+light_intensity_u8 = 0
+light_opacity_u8 = 0
+light_transmission_u8 = 255
+light_transmission_tint_rgba = 4294967295
+authority = "server_required""#;
 
     assert!(
         manifest.contains(glass_material),
-        "glass material should declare transparent render policy in authored content"
+        "glass material should declare transparent render and light-transmissive policy in authored content"
     );
 }
 
