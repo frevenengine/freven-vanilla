@@ -8,6 +8,17 @@ texture = "freven.vanilla:textures/glass"
 fallback_debug_tint_rgba = 2161704908
 render_layer = "transparent"
 
+[materials.lighting]
+lighting_model = "lit"
+emissive_strength_milli = 0
+emits_light = false
+light_color_rgba = 4294967295
+light_intensity_u8 = 0
+light_opacity_u8 = 0
+light_transmission_u8 = 255
+light_transmission_tint_rgba = 4294967295
+authority = "server_required"
+
 
 [[block_visuals]]
 key = "freven.vanilla:visuals/block/glass"

@@ -204,6 +204,8 @@ struct MaterialLightingDoc {
     light_opacity_u8: u8,
     #[serde(default)]
     light_transmission_u8: u8,
+    #[serde(default = "default_light_transmission_tint_rgba")]
+    light_transmission_tint_rgba: u32,
     #[serde(default = "default_light_authority")]
     authority: String,
 }
@@ -310,6 +312,8 @@ struct TemplateMaterialLightingDoc {
     light_opacity_u8: Option<toml::Value>,
     #[serde(default)]
     light_transmission_u8: Option<toml::Value>,
+    #[serde(default)]
+    light_transmission_tint_rgba: Option<toml::Value>,
     #[serde(default = "default_light_authority")]
     authority: String,
 }
@@ -361,6 +365,10 @@ fn default_light_color_rgba() -> u32 {
 
 fn default_light_opacity_u8() -> u8 {
     255
+}
+
+fn default_light_transmission_tint_rgba() -> u32 {
+    0xFFFF_FFFF
 }
 
 fn default_light_authority() -> String {
@@ -1542,6 +1550,11 @@ fn emit_template_material_lighting(
         "light_transmission_u8",
         lighting.light_transmission_u8.as_ref(),
     );
+    emit_template_value(
+        out,
+        "light_transmission_tint_rgba",
+        lighting.light_transmission_tint_rgba.as_ref(),
+    );
 
     out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
 }
@@ -1636,6 +1649,10 @@ fn emit_material_lighting(out: &mut String, lighting: Option<&MaterialLightingDo
     out.push_str(&format!(
         "light_transmission_u8 = {}\n",
         lighting.light_transmission_u8
+    ));
+    out.push_str(&format!(
+        "light_transmission_tint_rgba = {}\n",
+        lighting.light_transmission_tint_rgba
     ));
     out.push_str(&format!("authority = \"{}\"\n", lighting.authority));
 }
