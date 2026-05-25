@@ -168,9 +168,18 @@ fn log_local_skip(tick: &mut ClientTickApi<'_>, action: ClientMouseButton, reaso
 
 fn log_submit_failure(tick: &mut ClientTickApi<'_>, action: &str, err: ClientActionSubmitError) {
     tick.log(
-        LogLevel::Warn,
+        submit_failure_log_level(&err),
         format!("failed to submit {action} action: {err}"),
     );
+}
+
+fn submit_failure_log_level(err: &ClientActionSubmitError) -> LogLevel {
+    match err {
+        ClientActionSubmitError::LocalPredictionNoop
+        | ClientActionSubmitError::LocalPredictionConflict
+        | ClientActionSubmitError::LocalPredictionBacklog { .. } => LogLevel::Debug,
+        _ => LogLevel::Warn,
+    }
 }
 
 fn action_name(action: ClientMouseButton) -> &'static str {
@@ -231,6 +240,37 @@ fn query_block_id_via_block_service(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_prediction_admission_submit_failures_log_at_debug() {
+        assert!(matches!(
+            submit_failure_log_level(&ClientActionSubmitError::LocalPredictionNoop),
+            LogLevel::Debug
+        ));
+        assert!(matches!(
+            submit_failure_log_level(&ClientActionSubmitError::LocalPredictionConflict),
+            LogLevel::Debug
+        ));
+        assert!(matches!(
+            submit_failure_log_level(&ClientActionSubmitError::LocalPredictionBacklog {
+                pending: 8,
+                limit: 8,
+            }),
+            LogLevel::Debug
+        ));
+    }
+
+    #[test]
+    fn non_local_prediction_submit_failures_stay_warn() {
+        assert!(matches!(
+            submit_failure_log_level(&ClientActionSubmitError::NoActiveStream),
+            LogLevel::Warn
+        ));
+        assert!(matches!(
+            submit_failure_log_level(&ClientActionSubmitError::TooManyPending),
+            LogLevel::Warn
+        ));
+    }
     use freven_avatar_sdk_types::{
         ClientInputProvider, ClientKeyCode, ClientPlayerProvider, ClientPlayerView,
     };
