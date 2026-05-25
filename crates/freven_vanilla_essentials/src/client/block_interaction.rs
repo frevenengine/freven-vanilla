@@ -53,25 +53,25 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
         return;
     }
 
-    let Some(hit) = tick
-        .client
-        .camera
-        .predicted_cursor_hit(MAX_RAYCAST_DISTANCE_M)
-    else {
-        log_local_skip(
-            tick,
-            action,
-            "no predicted/effective block target under cursor",
-        );
+    let hit = match action {
+        ClientMouseButton::Left => tick
+            .client
+            .camera
+            .authoritative_cursor_hit(MAX_RAYCAST_DISTANCE_M),
+        ClientMouseButton::Right => tick
+            .client
+            .camera
+            .predicted_cursor_hit(MAX_RAYCAST_DISTANCE_M),
+        _ => None,
+    };
+
+    let Some(hit) = hit else {
+        log_local_skip(tick, action, missing_target_reason(action));
         return;
     };
 
     let Some(target_face) = client_face_to_wire(hit.face) else {
-        log_local_skip(
-            tick,
-            action,
-            "unsupported block face from predicted/effective hit",
-        );
+        log_local_skip(tick, action, "unsupported block face from interaction hit");
         return;
     };
     let at_input_seq = tick.client.interaction.next_input_seq();
@@ -153,6 +153,14 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
 
     if let Some((action, err)) = submit_failure {
         log_submit_failure(tick, action, err);
+    }
+}
+
+fn missing_target_reason(action: ClientMouseButton) -> &'static str {
+    match action {
+        ClientMouseButton::Left => "no authoritative block target under cursor",
+        ClientMouseButton::Right => "no predicted/effective block target under cursor",
+        _ => "no block target under cursor",
     }
 }
 
@@ -365,6 +373,32 @@ mod tests {
         }
     }
 
+    struct AuthoritativeOnlyCamera {
+        hit: ClientCursorHit,
+    }
+
+    impl ClientCameraHitProvider for AuthoritativeOnlyCamera {
+        fn camera_ray(&self) -> Option<ClientCameraRay> {
+            None
+        }
+
+        fn authoritative_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
+            Some(self.hit)
+        }
+
+        fn predicted_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
+            panic!("break interaction submit path must use authoritative cursor hits");
+        }
+
+        fn predicted_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
+            panic!("block interaction submit path must not query prediction-aware block ids");
+        }
+
+        fn authoritative_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
+            panic!("block interaction submit path must not query authoritative block ids");
+        }
+    }
+
     #[derive(Default)]
     struct RecordingInteraction {
         requests: Vec<ClientActionRequest>,
@@ -431,7 +465,7 @@ mod tests {
             left: true,
             right: false,
         };
-        let mut camera = PredictedOnlyCamera {
+        let mut camera = AuthoritativeOnlyCamera {
             hit: ClientCursorHit {
                 block_pos: (4, 5, 6),
                 face: ClientBlockFace::PosX,
