@@ -56,9 +56,13 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
     let Some(hit) = tick
         .client
         .camera
-        .authoritative_cursor_hit(MAX_RAYCAST_DISTANCE_M)
+        .predicted_cursor_hit(MAX_RAYCAST_DISTANCE_M)
     else {
-        log_local_skip(tick, action, "no authoritative block target under cursor");
+        log_local_skip(
+            tick,
+            action,
+            "no predicted/effective block target under cursor",
+        );
         return;
     };
 
@@ -66,7 +70,7 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
         log_local_skip(
             tick,
             action,
-            "unsupported block face from authoritative hit",
+            "unsupported block face from predicted/effective hit",
         );
         return;
     };
@@ -295,21 +299,21 @@ mod tests {
         }
     }
 
-    struct AuthoritativeOnlyCamera {
+    struct PredictedOnlyCamera {
         hit: ClientCursorHit,
     }
 
-    impl ClientCameraHitProvider for AuthoritativeOnlyCamera {
+    impl ClientCameraHitProvider for PredictedOnlyCamera {
         fn camera_ray(&self) -> Option<ClientCameraRay> {
             None
         }
 
         fn authoritative_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
-            Some(self.hit)
+            panic!("block interaction submit path must use prediction-aware cursor hits");
         }
 
         fn predicted_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
-            panic!("block interaction submit path must not use prediction-aware cursor hits");
+            Some(self.hit)
         }
 
         fn predicted_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
@@ -387,7 +391,7 @@ mod tests {
             left: true,
             right: false,
         };
-        let mut camera = AuthoritativeOnlyCamera {
+        let mut camera = PredictedOnlyCamera {
             hit: ClientCursorHit {
                 block_pos: (4, 5, 6),
                 face: ClientBlockFace::PosX,
@@ -428,7 +432,7 @@ mod tests {
             left: false,
             right: true,
         };
-        let mut camera = AuthoritativeOnlyCamera {
+        let mut camera = PredictedOnlyCamera {
             hit: ClientCursorHit {
                 block_pos: (10, 20, 30),
                 face: ClientBlockFace::PosY,
