@@ -1,12 +1,13 @@
 //! Handler for vanilla `freven:break` actions.
 
 use crate::action_payloads::decode_break_payload_v1;
+use crate::actions::targeting::{
+    MAX_ACTION_REACH_M, first_solid_target_visible, is_sane_pos, within_reach,
+};
 use freven_block_api::BlockMutationResult;
 use freven_block_guest::BlockMutation;
 use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
 
-const MAX_ACTION_REACH_M: f32 = 5.0;
-const MAX_COORD_ABS: i32 = 2_000_000;
 const BREAK_STATUS_FINISHED: u8 = 2;
 
 #[derive(Debug, Default)]
@@ -53,26 +54,19 @@ impl ActionHandler for BreakActionHandler {
             return ActionOutcome::Rejected;
         }
 
+        if !first_solid_target_visible(
+            *block_authority,
+            player_pos,
+            decoded.target.pos,
+            MAX_ACTION_REACH_M,
+        ) {
+            return ActionOutcome::Rejected;
+        }
+
         match block_authority.try_apply(&BlockMutation::clear_block(decoded.target.pos, Some(cur)))
         {
             BlockMutationResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }
-}
-
-#[inline]
-fn is_sane_pos(pos: (i32, i32, i32)) -> bool {
-    pos.0.abs() <= MAX_COORD_ABS && pos.1.abs() <= MAX_COORD_ABS && pos.2.abs() <= MAX_COORD_ABS
-}
-
-#[inline]
-fn within_reach(player_pos: [f32; 3], target: (i32, i32, i32), max_distance_m: f32) -> bool {
-    let cx = target.0 as f32 + 0.5;
-    let cy = target.1 as f32 + 0.5;
-    let cz = target.2 as f32 + 0.5;
-    let dx = player_pos[0] - cx;
-    let dy = player_pos[1] - cy;
-    let dz = player_pos[2] - cz;
-    (dx * dx + dy * dy + dz * dz) <= max_distance_m * max_distance_m
 }
