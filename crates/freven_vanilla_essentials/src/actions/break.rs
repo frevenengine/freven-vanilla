@@ -1,7 +1,7 @@
 //! Handler for vanilla `freven:break` actions.
 
 use crate::action_payloads::decode_break_payload_v2;
-use crate::actions::targeting::{MAX_ACTION_REACH_M, PLAYER_EYE_HEIGHT_M};
+use crate::actions::targeting::{MAX_ACTION_REACH_M, humanoid_interaction_origin_m};
 use freven_block_api::{
     BlockMutationResult, BlockWorldViewTerrainAdapter, TerrainInteractionRulesV2,
     TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
@@ -24,7 +24,7 @@ impl ActionHandler for BreakActionHandler {
         let Some(character_physics) = ctx.character_physics else {
             return ActionOutcome::Rejected;
         };
-        let Some(player_pos) = character_physics.player_position(ctx.player_id) else {
+        let Some(player_center_pos) = character_physics.player_position(ctx.player_id) else {
             return ActionOutcome::Rejected;
         };
 
@@ -36,7 +36,8 @@ impl ActionHandler for BreakActionHandler {
             return ActionOutcome::Rejected;
         };
 
-        let policy = terrain_validation_policy(player_pos, cmd);
+        let authoritative_origin_m = humanoid_interaction_origin_m(player_center_pos);
+        let policy = terrain_validation_policy(player_center_pos, cmd);
         let validation = {
             let world = BlockWorldViewTerrainAdapter::new(&**block_authority);
             let rules = VanillaBreakRules {
@@ -48,7 +49,17 @@ impl ActionHandler for BreakActionHandler {
         if let TerrainInteractionValidationV2::Rejected(reason) = validation {
             emit_log(
                 LogLevel::Debug,
-                format!("break terrain interaction rejected: {reason:?}"),
+                format!(
+                    "break terrain interaction rejected: reason={reason:?} player_id={} \
+                     authoritative_origin_m={:?} client_ray_origin_m={:?} ray_dir={:?} \
+                     hit_block_pos={:?} hit_face={:?}",
+                    ctx.player_id,
+                    authoritative_origin_m,
+                    intent.ray.ray_origin_m,
+                    intent.ray.ray_dir,
+                    intent.hit.hit_block_pos,
+                    intent.hit.hit_face,
+                ),
             );
             return ActionOutcome::Rejected;
         }
@@ -76,15 +87,11 @@ impl TerrainInteractionRulesV2 for VanillaBreakRules<'_> {
 }
 
 pub(crate) fn terrain_validation_policy(
-    player_pos: [f32; 3],
+    player_center_pos_m: [f32; 3],
     cmd: &ActionCmdView<'_>,
 ) -> TerrainInteractionValidationPolicyV2 {
     let mut policy = TerrainInteractionValidationPolicyV2::new(
-        [
-            player_pos[0],
-            player_pos[1] + PLAYER_EYE_HEIGHT_M,
-            player_pos[2],
-        ],
+        humanoid_interaction_origin_m(player_center_pos_m),
         MAX_ACTION_REACH_M,
     );
     policy.active_level_id = Some(cmd.level_id);

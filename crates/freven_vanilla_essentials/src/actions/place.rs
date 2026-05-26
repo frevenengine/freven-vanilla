@@ -3,6 +3,7 @@
 use crate::STONE_KEY;
 use crate::action_payloads::decode_place_payload_v2;
 use crate::actions::r#break::terrain_validation_policy;
+use crate::actions::targeting::humanoid_interaction_origin_m;
 use freven_block_api::{
     BlockMutationResult, BlockWorldViewTerrainAdapter, ClientBlockFace, TerrainInteractionRulesV2,
     TerrainInteractionValidationV2, validate_terrain_interaction_v2,
@@ -32,7 +33,7 @@ impl ActionHandler for PlaceActionHandler {
         let Some(character_physics) = ctx.character_physics else {
             return ActionOutcome::Rejected;
         };
-        let Some(player_pos) = character_physics.player_position(ctx.player_id) else {
+        let Some(player_center_pos) = character_physics.player_position(ctx.player_id) else {
             return ActionOutcome::Rejected;
         };
 
@@ -40,7 +41,8 @@ impl ActionHandler for PlaceActionHandler {
             return ActionOutcome::Rejected;
         };
 
-        let policy = terrain_validation_policy(player_pos, cmd);
+        let authoritative_origin_m = humanoid_interaction_origin_m(player_center_pos);
+        let policy = terrain_validation_policy(player_center_pos, cmd);
         let validation = {
             let world = BlockWorldViewTerrainAdapter::new(&**block_authority);
             let rules = VanillaPlaceRules {
@@ -53,7 +55,18 @@ impl ActionHandler for PlaceActionHandler {
         if let TerrainInteractionValidationV2::Rejected(reason) = validation {
             emit_log(
                 LogLevel::Debug,
-                format!("place terrain interaction rejected: {reason:?}"),
+                format!(
+                    "place terrain interaction rejected: reason={reason:?} player_id={} \
+                     authoritative_origin_m={:?} client_ray_origin_m={:?} ray_dir={:?} \
+                     hit_block_pos={:?} hit_face={:?} placement_pos={:?}",
+                    ctx.player_id,
+                    authoritative_origin_m,
+                    intent.ray.ray_origin_m,
+                    intent.ray.ray_dir,
+                    intent.hit.hit_block_pos,
+                    intent.hit.hit_face,
+                    intent.place.as_ref().map(|place| place.placement_pos),
+                ),
             );
             return ActionOutcome::Rejected;
         }
