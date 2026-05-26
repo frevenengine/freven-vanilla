@@ -11,6 +11,9 @@ Its role is to show:
 - how builtin gameplay stays on the same semantic system as runtime-loaded mods
 - how first-party-only policy stays above the generic world stack
 
+Runtime terrain interaction v2 wiring is audited in
+[`TERRAIN_INTERACTION_V2_RUNTIME_WIRING_AUDIT.md`](TERRAIN_INTERACTION_V2_RUNTIME_WIRING_AUDIT.md).
+
 The recommended public gameplay mod authoring path is `freven_world_guest_sdk`
 on Wasm. Neutral guests that stay on platform-shaped declarations use
 `freven_guest_sdk` instead.
