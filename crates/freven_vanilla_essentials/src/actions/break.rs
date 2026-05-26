@@ -1,31 +1,25 @@
 //! Handler for vanilla `freven:break` actions.
 
-use crate::action_payloads::decode_break_payload_v1;
-use crate::actions::targeting::{
-    MAX_ACTION_REACH_M, first_solid_target_visible, is_sane_pos, within_reach,
+use crate::action_payloads::decode_break_payload_v2;
+use crate::actions::targeting::{MAX_ACTION_REACH_M, PLAYER_EYE_HEIGHT_M};
+use freven_block_api::{
+    BlockMutationResult, BlockWorldViewTerrainAdapter, TerrainInteractionRulesV2,
+    TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
+    validate_terrain_interaction_v2,
 };
-use freven_block_api::BlockMutationResult;
 use freven_block_guest::BlockMutation;
+use freven_block_sdk_types::BlockRuntimeId;
+use freven_mod_api::{LogLevel, emit_log};
 use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
-
-const BREAK_STATUS_FINISHED: u8 = 2;
 
 #[derive(Debug, Default)]
 pub struct BreakActionHandler;
 
 impl ActionHandler for BreakActionHandler {
     fn handle(&mut self, ctx: &mut ActionContext<'_>, cmd: &ActionCmdView<'_>) -> ActionOutcome {
-        let Ok(decoded) = decode_break_payload_v1(cmd.payload) else {
+        let Ok(intent) = decode_break_payload_v2(cmd.payload) else {
             return ActionOutcome::Rejected;
         };
-
-        if decoded.status != BREAK_STATUS_FINISHED {
-            return ActionOutcome::Rejected;
-        }
-
-        if decoded.target.face > 5 || !is_sane_pos(decoded.target.pos) {
-            return ActionOutcome::Rejected;
-        }
 
         let Some(character_physics) = ctx.character_physics else {
             return ActionOutcome::Rejected;
@@ -34,7 +28,7 @@ impl ActionHandler for BreakActionHandler {
             return ActionOutcome::Rejected;
         };
 
-        if !within_reach(player_pos, decoded.target.pos, MAX_ACTION_REACH_M) {
+        if intent.identity.action_seq.is_some_and(|seq| seq != cmd.seq) {
             return ActionOutcome::Rejected;
         }
 
@@ -42,31 +36,60 @@ impl ActionHandler for BreakActionHandler {
             return ActionOutcome::Rejected;
         };
 
-        let Some(cur) = block_authority.block(
-            decoded.target.pos.0,
-            decoded.target.pos.1,
-            decoded.target.pos.2,
-        ) else {
+        let policy = terrain_validation_policy(player_pos, cmd);
+        let validation = {
+            let world = BlockWorldViewTerrainAdapter::new(&**block_authority);
+            let rules = VanillaBreakRules {
+                world: &**block_authority,
+            };
+            validate_terrain_interaction_v2(&world, &rules, &policy, &intent)
+        };
+
+        if let TerrainInteractionValidationV2::Rejected(reason) = validation {
+            emit_log(
+                LogLevel::Debug,
+                format!("break terrain interaction rejected: {reason:?}"),
+            );
+            return ActionOutcome::Rejected;
+        }
+
+        let target_pos = intent.hit.hit_block_pos;
+        let Some(cur) = block_authority.block(target_pos.0, target_pos.1, target_pos.2) else {
             return ActionOutcome::Rejected;
         };
 
-        if !block_authority.is_solid(cur) {
-            return ActionOutcome::Rejected;
-        }
-
-        if !first_solid_target_visible(
-            *block_authority,
-            player_pos,
-            decoded.target.pos,
-            MAX_ACTION_REACH_M,
-        ) {
-            return ActionOutcome::Rejected;
-        }
-
-        match block_authority.try_apply(&BlockMutation::clear_block(decoded.target.pos, Some(cur)))
-        {
+        match block_authority.try_apply(&BlockMutation::clear_block(target_pos, Some(cur))) {
             BlockMutationResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
     }
+}
+
+struct VanillaBreakRules<'a> {
+    world: &'a dyn freven_block_api::BlockWorldView,
+}
+
+impl TerrainInteractionRulesV2 for VanillaBreakRules<'_> {
+    fn is_solid(&self, block_id: BlockRuntimeId) -> bool {
+        self.world.is_solid(block_id)
+    }
+}
+
+pub(crate) fn terrain_validation_policy(
+    player_pos: [f32; 3],
+    cmd: &ActionCmdView<'_>,
+) -> TerrainInteractionValidationPolicyV2 {
+    let mut policy = TerrainInteractionValidationPolicyV2::new(
+        [
+            player_pos[0],
+            player_pos[1] + PLAYER_EYE_HEIGHT_M,
+            player_pos[2],
+        ],
+        MAX_ACTION_REACH_M,
+    );
+    policy.active_level_id = Some(cmd.level_id);
+    policy.active_stream_epoch = Some(cmd.stream_epoch);
+    policy.min_input_seq = Some(cmd.at_input_seq);
+    policy.max_input_seq = Some(cmd.at_input_seq);
+    policy
 }
