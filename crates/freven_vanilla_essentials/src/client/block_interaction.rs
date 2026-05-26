@@ -453,8 +453,10 @@ mod tests {
         ClientInputProvider, ClientKeyCode, ClientPlayerProvider, ClientPlayerView,
     };
     use freven_block_api::{
-        BlockAuthority, BlockMutationResult, BlockWorldView, ClientCameraHitProvider,
-        ClientCameraRay, ClientCursorHit,
+        BlockAuthority, BlockMutationResult, BlockWorldView, BlockWorldViewTerrainAdapter,
+        ClientCameraHitProvider, ClientCameraRay, ClientCursorHit, TerrainInteractionRulesV2,
+        TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
+        validate_terrain_interaction_v2,
     };
     use freven_block_guest::BlockMutation;
     use freven_block_sdk_types::BlockRuntimeId;
@@ -674,7 +676,7 @@ mod tests {
     impl Default for TestPhysics {
         fn default() -> Self {
             Self {
-                pos: [0.5, 0.0, 0.5],
+                pos: [0.5, 0.9, 0.5],
             }
         }
     }
@@ -682,6 +684,16 @@ mod tests {
     impl CharacterPhysicsQuery for TestPhysics {
         fn player_position(&self, _player_id: u64) -> Option<[f32; 3]> {
             Some(self.pos)
+        }
+    }
+
+    struct TestTerrainRules<'a> {
+        world: &'a dyn BlockWorldView,
+    }
+
+    impl TerrainInteractionRulesV2 for TestTerrainRules<'_> {
+        fn is_solid(&self, block_id: BlockRuntimeId) -> bool {
+            self.world.is_solid(block_id)
         }
     }
 
@@ -1033,7 +1045,7 @@ mod tests {
     }
 
     #[test]
-    fn server_accepts_valid_v2_break() {
+    fn server_accepts_valid_v2_break_with_center_to_eye_origin() {
         let physics = TestPhysics::default();
         let payload = try_encode_break_payload_v2(&server_break_intent((2, 1, 0), 1.5, 42, 1))
             .expect("encode break v2");
@@ -1062,7 +1074,7 @@ mod tests {
     }
 
     #[test]
-    fn server_accepts_valid_v2_place() {
+    fn server_accepts_valid_v2_place_with_center_to_eye_origin() {
         let physics = TestPhysics::default();
         let payload = try_encode_place_payload_v2(&server_place_intent(
             (2, 1, 0),
@@ -1096,6 +1108,24 @@ mod tests {
         let mut handler = crate::actions::place::PlaceActionHandler;
         assert_eq!(handler.handle(&mut ctx, &cmd), ActionOutcome::Applied);
         assert_eq!(authority.block(1, 1, 0), Some(BlockRuntimeId(3)));
+    }
+
+    #[test]
+    fn old_center_plus_full_eye_height_origin_rejects_valid_v2_break_geometry() {
+        let center_pos_m = TestPhysics::default().pos;
+        let old_buggy_origin_m = [center_pos_m[0], center_pos_m[1] + 1.62, center_pos_m[2]];
+        let intent = server_break_intent((2, 1, 0), 1.5, 42, 1);
+        let authority = TestAuthority::default().with_block((2, 1, 0), 1);
+        let world = BlockWorldViewTerrainAdapter::new(&authority);
+        let rules = TestTerrainRules { world: &authority };
+        let policy = TerrainInteractionValidationPolicyV2::new(old_buggy_origin_m, 5.0);
+
+        let validation = validate_terrain_interaction_v2(&world, &rules, &policy, &intent);
+
+        assert!(
+            matches!(validation, TerrainInteractionValidationV2::Rejected(_)),
+            "old center + full eye-height origin should miss/reject, got {validation:?}"
+        );
     }
 
     #[test]
