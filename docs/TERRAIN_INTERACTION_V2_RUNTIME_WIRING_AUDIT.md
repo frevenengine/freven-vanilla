@@ -2,9 +2,8 @@
 
 Issue: `freven-engine#386`
 
-Status: blocked by layering. This Vanilla PR must not wire the runtime v2
-server path until the v2 validator is available from an SDK-owned or otherwise
-shared crate that Vanilla can legally depend on.
+Status: runtime wiring implemented after the validator moved into the SDK-owned
+`freven_block_api::terrain_interaction` surface.
 
 ## Layering Conclusion
 
@@ -13,111 +12,70 @@ Vanilla currently depends on SDK crates such as `freven_block_api`,
 `freven-engine`, and this PR must not add such a dependency or modify engine,
 boot, or SDK repositories.
 
-The available v2 validator/harness is implemented in the sibling engine repo at:
-
-```text
-freven-engine/crates/freven_client_engine/src/terrain_interaction.rs
-```
-
-That module owns the authoritative v2 ray trace, face/contact validation,
-reach, occlusion, first-solid/support, placement-empty, and block-id-policy
-checks. Reusing it directly from Vanilla would invert the dependency direction:
-Vanilla gameplay would depend on engine internals. Copying it into Vanilla
-would duplicate long-term validator math and risk divergent authority semantics.
-
-Therefore Vanilla runtime wiring is intentionally not implemented here. The
-validator must move or be extracted first, preferably into an SDK/shared surface
-that both engine and Vanilla may depend on without layering inversion.
+The previous blocker is gone: the shared v2 validator is now available through
+`freven_block_api::terrain_interaction`, so Vanilla can validate terrain
+interactions without depending on engine internals or copying validator math.
 
 ## Current Vanilla State
 
-The runtime path is still legacy v1:
+The rc10 runtime path is v2:
 
 - `crates/freven_vanilla_essentials/src/action_payloads.rs` encodes and decodes
-  target-position/face payloads for break/place.
+  explicit v2 terrain interaction payloads using SDK vocabulary types.
 - `crates/freven_vanilla_essentials/src/client/block_interaction.rs` builds
-  payloads from prediction-aware presented cursor hits, but still emits v1
-  target-only bytes.
+  payloads from prediction-aware presented cursor hits while preserving local
+  visual prediction.
 - `crates/freven_vanilla_essentials/src/actions/break.rs` and
-  `crates/freven_vanilla_essentials/src/actions/place.rs` decode v1 payloads and
-  perform Vanilla-local center/target visibility checks.
-- `crates/freven_vanilla_essentials/src/actions/targeting.rs` contains
-  Vanilla-local ray/visibility helpers that are not the v2 contract validator.
+  `crates/freven_vanilla_essentials/src/actions/place.rs` decode v2 payloads and
+  call `validate_terrain_interaction_v2` before applying authoritative block
+  mutations.
+- `crates/freven_vanilla_essentials/src/actions/targeting.rs` only retains
+  Vanilla policy constants; the old target-only reach/visibility helpers are no
+  longer used by the rc10 path.
 
-This means the client already preserves local visual prediction behavior, but
-the server-authoritative validation is not the v2 contract and must not be
-treated as an rc10 fallback.
+Legacy v1 payload helpers remain only for explicit stale/legacy tests. The rc10
+handlers reject v1 target-position-only payloads.
 
-## Required Extraction Before Runtime Wiring
+## Runtime Boundary
 
-Move or expose the v2 validator so Vanilla can call one shared implementation
-for server authority. The shared surface needs to include, at minimum:
+The current client action submit API assigns `action_seq` after Vanilla builds
+the opaque payload. Vanilla therefore encodes `action_seq: None` and an empty
+`depends_on` list at pre-submit time. This is covered by
+`pre_submit_identity_defers_action_seq_and_same_cell_dependencies`.
 
-- `validate_terrain_interaction_v2`
-- `TerrainInteractionValidationPolicyV2`
-- `TerrainInteractionValidationV2`
-- accepted-hit metadata
-- world/rules adapter traits, including loaded/not-loaded/out-of-bounds cell
-  classification
-- deterministic `TerrainInteractionRejectReasonV2` results
+Same-cell dependency identity still needs an engine/action-layer binding point if
+future runtime behavior requires final `action_seq` in the payload before
+network send. Vanilla does not make client prediction authoritative to paper over
+that boundary.
 
-The extracted implementation must remain authoritative over:
+## Server Authority
 
-- finite normalized ray validation
-- authoritative interaction origin and reach
-- face/contact-aware first-solid tracing
-- target/support solidity
-- placement cell emptiness
-- placement support/normal consistency
-- allowed block id policy
-- stream and input sequence bounds where available
+The server remains authoritative for:
 
-## Vanilla Wiring After Extraction
+- authoritative interaction origin and reach policy;
+- face/contact-aware first-solid tracing through the SDK validator;
+- target/support solidity and placement emptiness;
+- allowed place block id through Vanilla rules;
+- authoritative compare-and-set block mutation.
 
-After the validator is shared legally, Vanilla should make these changes in one
-runtime PR:
+## Test Matrix
 
-1. Replace v1 rc10 payload emission with an explicit v2 payload codec in
-   `action_payloads.rs`, using SDK vocabulary types from `freven_block_api`:
-   `TerrainInteractionIntentV2`, `TerrainInteractionKindV2`,
-   `TerrainInteractionRayV2`, `TerrainInteractionHitV2`,
-   `TerrainPlaceIntentV2`, and `TerrainInteractionRejectReasonV2`.
-2. Encode the action kind, stream identity, input sequence, prediction
-   transaction id, dependency ids, ray origin, ray direction, max distance, hit
-   block, hit face, optional hit point, and place-specific support/placement
-   block id fields.
-3. Keep v1 only as an explicit legacy/non-rc10 test path if still needed. Do not
-   retain a hidden target-position-only fallback in the rc10 path.
-4. Build client payloads from prediction-aware presented cursor state while
-   preserving local visual prediction. The client must include enough intent
-   data for server validation and must not promote prediction to authority.
-5. Add or expose an identity source for same-cell break/place chains. If
-   pre-submit code cannot know the final `action_seq`, the engine-owned pending
-   record must bind the assigned action sequence before network send. If
-   Vanilla still cannot express dependency identity, document and test that
-   boundary explicitly.
-6. Replace the server handlers' local target-only validation with calls to the
-   shared validator. Map deterministic v2 reject categories onto the current
-   `ActionOutcome::Rejected` surface and any available action-result reason
-   surface without weakening authority.
+The runtime wiring covers:
 
-## Deferred Test Matrix
-
-The runtime PR after extraction should cover:
-
-- v2 payload roundtrip
-- client break payload includes ray and hit contract fields
-- client place payload includes support and placement cell
-- server accepts valid v2 break
-- server accepts valid v2 place
-- server rejects out-of-reach
-- server rejects occluded target
-- server rejects occupied placement
-- server rejects v1/legacy payload on the rc10 path
-- client prediction is never used as server authority
+- v2 payload roundtrip;
+- client break payload includes ray and hit contract fields;
+- client place payload includes support and placement cell;
+- server accepts valid v2 break;
+- server accepts valid v2 place;
+- server rejects out-of-reach;
+- server rejects occluded target;
+- server rejects occupied placement;
+- server rejects v1/legacy payload on the rc10 path;
+- client prediction is never used as server authority;
+- pre-submit action-sequence/dependency boundary is explicit.
 
 ## Deferred Boot and Smoke Work
 
-After Vanilla runtime wiring lands, `freven-boot` still needs its dependency bump
-and manual smoke must be rerun against the integrated stack. This audit does not
-change boot, engine, or SDK state.
+`freven-boot` still needs its dependency bump and manual smoke must be rerun
+against the integrated stack. This audit does not change boot, engine, or SDK
+state.

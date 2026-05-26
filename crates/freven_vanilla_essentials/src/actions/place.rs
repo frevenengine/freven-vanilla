@@ -1,13 +1,15 @@
 //! Handler for vanilla `freven:place` actions.
 
 use crate::STONE_KEY;
-use crate::action_payloads::decode_place_payload_v1;
-use crate::actions::targeting::{
-    MAX_ACTION_REACH_M, first_solid_target_visible, is_sane_pos, target_from_face, within_reach,
+use crate::action_payloads::decode_place_payload_v2;
+use crate::actions::r#break::terrain_validation_policy;
+use freven_block_api::{
+    BlockMutationResult, BlockWorldViewTerrainAdapter, ClientBlockFace, TerrainInteractionRulesV2,
+    TerrainInteractionValidationV2, validate_terrain_interaction_v2,
 };
-use freven_block_api::BlockMutationResult;
 use freven_block_guest::BlockMutation;
 use freven_block_sdk_types::BlockRuntimeId;
+use freven_mod_api::{LogLevel, emit_log};
 use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
 
 #[derive(Debug, Default)]
@@ -15,31 +17,17 @@ pub struct PlaceActionHandler;
 
 impl ActionHandler for PlaceActionHandler {
     fn handle(&mut self, ctx: &mut ActionContext<'_>, cmd: &ActionCmdView<'_>) -> ActionOutcome {
-        let Ok(decoded) = decode_place_payload_v1(cmd.payload) else {
+        let Ok(intent) = decode_place_payload_v2(cmd.payload) else {
             return ActionOutcome::Rejected;
         };
 
-        if decoded.target.face > 5 || !is_sane_pos(decoded.target.pos) {
+        if intent.identity.action_seq.is_some_and(|seq| seq != cmd.seq) {
             return ActionOutcome::Rejected;
         }
 
         let Some(stone) = ctx.block_id_by_key(STONE_KEY) else {
             return ActionOutcome::Rejected;
         };
-        let Ok(stone_wire_id) = u8::try_from(stone.0) else {
-            return ActionOutcome::Rejected;
-        };
-        if decoded.block_id != stone_wire_id {
-            return ActionOutcome::Rejected;
-        }
-
-        let Some(target_pos) = target_from_face(decoded.target.pos, decoded.target.face) else {
-            return ActionOutcome::Rejected;
-        };
-
-        if !is_sane_pos(target_pos) {
-            return ActionOutcome::Rejected;
-        }
 
         let Some(character_physics) = ctx.character_physics else {
             return ActionOutcome::Rejected;
@@ -48,47 +36,64 @@ impl ActionHandler for PlaceActionHandler {
             return ActionOutcome::Rejected;
         };
 
-        if !within_reach(player_pos, decoded.target.pos, MAX_ACTION_REACH_M) {
-            return ActionOutcome::Rejected;
-        }
-
         let Some(block_authority) = ctx.block_authority.as_mut() else {
             return ActionOutcome::Rejected;
         };
 
-        let Some(hit_cur) = block_authority.block(
-            decoded.target.pos.0,
-            decoded.target.pos.1,
-            decoded.target.pos.2,
-        ) else {
+        let policy = terrain_validation_policy(player_pos, cmd);
+        let validation = {
+            let world = BlockWorldViewTerrainAdapter::new(&**block_authority);
+            let rules = VanillaPlaceRules {
+                world: &**block_authority,
+                allowed_block_id: stone,
+            };
+            validate_terrain_interaction_v2(&world, &rules, &policy, &intent)
+        };
+
+        if let TerrainInteractionValidationV2::Rejected(reason) = validation {
+            emit_log(
+                LogLevel::Debug,
+                format!("place terrain interaction rejected: {reason:?}"),
+            );
+            return ActionOutcome::Rejected;
+        }
+
+        let Some(place) = intent.place else {
             return ActionOutcome::Rejected;
         };
+        let target_pos = place.placement_pos;
 
         let Some(target_cur) = block_authority.block(target_pos.0, target_pos.1, target_pos.2)
         else {
             return ActionOutcome::Rejected;
         };
 
-        if !block_authority.is_solid(hit_cur) || block_authority.is_solid(target_cur) {
-            return ActionOutcome::Rejected;
-        }
-
-        if !first_solid_target_visible(
-            *block_authority,
-            player_pos,
-            decoded.target.pos,
-            MAX_ACTION_REACH_M,
-        ) {
-            return ActionOutcome::Rejected;
-        }
-
         match block_authority.try_apply(&BlockMutation::SetBlock {
             pos: target_pos,
-            block_id: BlockRuntimeId(u32::from(decoded.block_id)),
+            block_id: place.block_id,
             expected_old: Some(target_cur),
         }) {
             BlockMutationResult::Applied { .. } => ActionOutcome::Applied,
             _ => ActionOutcome::Rejected,
         }
+    }
+}
+
+struct VanillaPlaceRules<'a> {
+    world: &'a dyn freven_block_api::BlockWorldView,
+    allowed_block_id: BlockRuntimeId,
+}
+
+impl TerrainInteractionRulesV2 for VanillaPlaceRules<'_> {
+    fn is_solid(&self, block_id: BlockRuntimeId) -> bool {
+        self.world.is_solid(block_id)
+    }
+
+    fn is_supporting(&self, block_id: BlockRuntimeId, _face: ClientBlockFace) -> bool {
+        self.world.is_solid(block_id)
+    }
+
+    fn can_place_block(&self, block_id: BlockRuntimeId) -> bool {
+        block_id == self.allowed_block_id
     }
 }
