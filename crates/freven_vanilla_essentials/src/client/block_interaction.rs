@@ -163,14 +163,12 @@ fn missing_target_reason(action: ClientMouseButton) -> &'static str {
 struct BreakInteractionTarget {
     hit: ClientCursorHit,
     camera_ray: ClientCameraRay,
-    hit_point_m: [f32; 3],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct PlaceInteractionTarget {
     hit: ClientCursorHit,
     camera_ray: ClientCameraRay,
-    hit_point_m: [f32; 3],
     place_pos: (i32, i32, i32),
 }
 
@@ -184,11 +182,7 @@ fn select_presented_break_target(
         return None;
     }
 
-    Some(BreakInteractionTarget {
-        hit,
-        camera_ray,
-        hit_point_m: hit_point_from_ray(camera_ray, hit.distance_m)?,
-    })
+    Some(BreakInteractionTarget { hit, camera_ray })
 }
 
 fn select_presented_place_target(
@@ -210,7 +204,6 @@ fn select_presented_place_target(
     Some(PlaceInteractionTarget {
         hit,
         camera_ray,
-        hit_point_m: hit_point_from_ray(camera_ray, hit.distance_m)?,
         place_pos,
     })
 }
@@ -230,7 +223,7 @@ fn build_break_intent(
             TerrainInteractionKindV2::Break,
         ),
         ray: terrain_ray(target.camera_ray, client_view_tick),
-        hit: terrain_hit(target.hit, target.hit_point_m),
+        hit: terrain_hit(target.hit),
         place: None,
     }
 }
@@ -251,7 +244,7 @@ fn build_place_intent(
             TerrainInteractionKindV2::Place,
         ),
         ray: terrain_ray(target.camera_ray, client_view_tick),
-        hit: terrain_hit(target.hit, target.hit_point_m),
+        hit: terrain_hit(target.hit),
         place: Some(TerrainPlaceIntentV2 {
             support_block_pos: target.hit.block_pos,
             placement_pos: target.place_pos,
@@ -301,11 +294,11 @@ fn terrain_ray(camera_ray: ClientCameraRay, client_view_tick: u64) -> TerrainInt
     }
 }
 
-fn terrain_hit(hit: ClientCursorHit, hit_point_m: [f32; 3]) -> TerrainInteractionHitV2 {
+fn terrain_hit(hit: ClientCursorHit) -> TerrainInteractionHitV2 {
     TerrainInteractionHitV2 {
         hit_block_pos: hit.block_pos,
         hit_face: hit.face,
-        hit_point_m: Some(hit_point_m),
+        hit_point_m: None,
     }
 }
 
@@ -387,17 +380,6 @@ fn normalized_camera_ray(ray: ClientCameraRay) -> Option<ClientCameraRay> {
             ray.direction[2] / len,
         ],
     })
-}
-
-fn hit_point_from_ray(ray: ClientCameraRay, distance_m: f32) -> Option<[f32; 3]> {
-    if !distance_m.is_finite() || distance_m < 0.0 {
-        return None;
-    }
-    Some([
-        ray.direction[0].mul_add(distance_m, ray.origin[0]),
-        ray.direction[1].mul_add(distance_m, ray.origin[1]),
-        ray.direction[2].mul_add(distance_m, ray.origin[2]),
-    ])
 }
 
 fn vec3_is_finite(value: [f32; 3]) -> bool {
@@ -825,7 +807,7 @@ mod tests {
         assert_eq!(payload.ray.ray_dir, [1.0, 0.0, 0.0]);
         assert_eq!(payload.ray.max_distance_m, MAX_RAYCAST_DISTANCE_M);
         assert_eq!(payload.ray.client_view_tick, Some(7));
-        assert_eq!(payload.hit.hit_point_m, Some([1.5, 0.0, 0.0]));
+        assert_eq!(payload.hit.hit_point_m, None);
         assert_eq!(
             req.predicted,
             vec![ClientPredictedEdit::clear_block((4, 5, 6))]
@@ -844,7 +826,6 @@ mod tests {
                 origin: [0.5, 1.62, 0.5],
                 direction: [1.0, 0.0, 0.0],
             },
-            hit_point_m: [2.0, 1.62, 0.5],
         };
 
         let intent = build_break_intent(1, 1, 42, 7, target);

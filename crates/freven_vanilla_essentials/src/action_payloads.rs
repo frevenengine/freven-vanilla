@@ -173,7 +173,6 @@ pub fn try_encode_terrain_interaction_payload_v2(
 
     write_pos(&mut out, intent.hit.hit_block_pos);
     out.push(face_to_wire(intent.hit.hit_face)?);
-    write_optional_vec3_f32(&mut out, intent.hit.hit_point_m);
 
     match intent.place {
         Some(place) => {
@@ -229,7 +228,7 @@ pub fn decode_terrain_interaction_payload_v2(
     let hit = TerrainInteractionHitV2 {
         hit_block_pos: read_pos(payload, &mut cursor, "hit_block_pos")?,
         hit_face: read_face(payload, &mut cursor)?,
-        hit_point_m: read_optional_vec3_f32(payload, &mut cursor, "hit_point_m")?,
+        hit_point_m: None,
     };
 
     let place = match read_u8(payload, &mut cursor, "has_place")? {
@@ -324,17 +323,6 @@ fn write_f32(out: &mut Vec<u8>, value: f32) {
 fn write_vec3_f32(out: &mut Vec<u8>, value: [f32; 3]) {
     for axis in value {
         write_f32(out, axis);
-    }
-}
-
-#[inline]
-fn write_optional_vec3_f32(out: &mut Vec<u8>, value: Option<[f32; 3]>) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            write_vec3_f32(out, value);
-        }
-        None => out.push(0),
     }
 }
 
@@ -472,18 +460,6 @@ fn read_vec3_f32(
     ])
 }
 
-fn read_optional_vec3_f32(
-    payload: &[u8],
-    cursor: &mut usize,
-    field: &'static str,
-) -> Result<Option<[f32; 3]>, ActionPayloadError> {
-    match read_u8(payload, cursor, field)? {
-        0 => Ok(None),
-        1 => Ok(Some(read_vec3_f32(payload, cursor, field)?)),
-        value => Err(ActionPayloadError::InvalidEnumValue { field, value }),
-    }
-}
-
 fn read_pos(
     payload: &[u8],
     cursor: &mut usize,
@@ -548,6 +524,10 @@ fn read_face(payload: &[u8], cursor: &mut usize) -> Result<ClientBlockFace, Acti
 mod tests {
     use super::*;
 
+    const ACTION_PAYLOAD_LIMIT_BYTES: usize = 64;
+    const COMPACT_BREAK_V2_BYTES: usize = 52;
+    const COMPACT_PLACE_V2_BYTES: usize = 63;
+
     #[test]
     fn roundtrip_break_payload_v1() {
         let payload = encode_break_payload_v1(
@@ -599,7 +579,9 @@ mod tests {
         let payload = try_encode_break_payload_v2(&intent).expect("encode break v2");
         let decoded = decode_break_payload_v2(&payload).expect("decode break v2");
 
-        assert_eq!(decoded, intent);
+        let mut expected = intent;
+        expected.hit.hit_point_m = None;
+        assert_eq!(decoded, expected);
     }
 
     #[test]
@@ -616,7 +598,36 @@ mod tests {
         let payload = try_encode_place_payload_v2(&intent).expect("encode place v2");
         let decoded = decode_place_payload_v2(&payload).expect("decode place v2");
 
-        assert_eq!(decoded, intent);
+        let mut expected = intent;
+        expected.hit.hit_point_m = None;
+        assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn encoded_break_payload_v2_fits_action_payload_limit() {
+        let intent = test_intent(TerrainInteractionKindV2::Break, None);
+
+        let payload = try_encode_break_payload_v2(&intent).expect("encode break v2");
+
+        assert_eq!(payload.len(), COMPACT_BREAK_V2_BYTES);
+        assert!(payload.len() <= ACTION_PAYLOAD_LIMIT_BYTES);
+    }
+
+    #[test]
+    fn encoded_place_payload_v2_fits_action_payload_limit() {
+        let place = TerrainPlaceIntentV2 {
+            support_block_pos: (10, 64, -5),
+            placement_pos: (11, 64, -5),
+            block_id: BlockRuntimeId(3),
+            expected_placement_empty: true,
+            expected_support_solid: true,
+        };
+        let intent = test_intent(TerrainInteractionKindV2::Place, Some(place));
+
+        let payload = try_encode_place_payload_v2(&intent).expect("encode place v2");
+
+        assert_eq!(payload.len(), COMPACT_PLACE_V2_BYTES);
+        assert!(payload.len() <= ACTION_PAYLOAD_LIMIT_BYTES);
     }
 
     #[test]

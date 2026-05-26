@@ -21,7 +21,9 @@ interactions without depending on engine internals or copying validator math.
 The rc10 runtime path is v2:
 
 - `crates/freven_vanilla_essentials/src/action_payloads.rs` encodes and decodes
-  explicit v2 terrain interaction payloads using SDK vocabulary types.
+  compact v2 terrain interaction payloads using SDK vocabulary types. The wire
+  payload carries the ray, hit block position, and hit face; local hit points are
+  not sent and decode as `None`.
 - `crates/freven_vanilla_essentials/src/client/block_interaction.rs` builds
   payloads from prediction-aware presented cursor hits while preserving local
   visual prediction.
@@ -63,7 +65,7 @@ The server remains authoritative for:
 The runtime wiring covers:
 
 - v2 payload roundtrip;
-- client break payload includes ray and hit contract fields;
+- client break payload includes ray and compact hit contract fields;
 - client place payload includes support and placement cell;
 - server accepts valid v2 break;
 - server accepts valid v2 place;
