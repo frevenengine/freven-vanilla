@@ -28,6 +28,7 @@ use freven_world_api::{
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const MAX_MOUSE_PRESSES_PER_TICK: usize = 8;
+const LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS: u64 = 8;
 thread_local! {
     static LOCAL_TERRAIN_PREDICTIONS: RefCell<LocalTerrainPredictionState> =
         const { RefCell::new(LocalTerrainPredictionState {
@@ -42,7 +43,7 @@ pub fn start_client(api: &mut ClientApi<'_>) {
 }
 
 pub fn tick_client(tick: &mut ClientTickApi<'_>) {
-    prune_local_terrain_predictions(tick.client.camera);
+    prune_local_terrain_predictions(tick.client.camera, tick.tick);
 
     // Drain a bounded ordered click batch. This preserves repeated RMB clicks
     // and LMB/RMB ordering captured by the engine input queue while avoiding
@@ -131,6 +132,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
                     remember_local_terrain_predictions(
                         action_seq,
                         intent.identity.prediction_tx,
+                        client_view_tick,
                         &predicted,
                     );
                     log_local_prediction_accepted(tick, "break", action_seq, &intent, admission);
@@ -199,6 +201,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
                     remember_local_terrain_predictions(
                         action_seq,
                         intent.identity.prediction_tx,
+                        client_view_tick,
                         &predicted,
                     );
                     log_local_prediction_accepted(tick, "place", action_seq, &intent, admission);
@@ -237,6 +240,7 @@ struct PlaceInteractionTarget {
 struct PendingTerrainPrediction {
     action_seq: u32,
     prediction_tx: TerrainPredictionTransactionIdV2,
+    created_client_tick: u64,
     pos: (i32, i32, i32),
     predicted_block_id: BlockRuntimeId,
 }
@@ -712,6 +716,7 @@ fn prediction_mismatch_is_explained(
 fn remember_local_terrain_predictions(
     action_seq: u32,
     prediction_tx: TerrainPredictionTransactionIdV2,
+    created_client_tick: u64,
     predicted: &[ClientPredictedEdit],
 ) {
     LOCAL_TERRAIN_PREDICTIONS.with(|state| {
@@ -720,6 +725,7 @@ fn remember_local_terrain_predictions(
             state.pending.push(PendingTerrainPrediction {
                 action_seq,
                 prediction_tx,
+                created_client_tick,
                 pos: edit.pos,
                 predicted_block_id: edit.predicted_block_id,
             });
@@ -727,12 +733,28 @@ fn remember_local_terrain_predictions(
     });
 }
 
-fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider) {
+fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider, current_tick: u64) {
     LOCAL_TERRAIN_PREDICTIONS.with(|state| {
         state.borrow_mut().pending.retain(|pending| {
             let predicted = camera.predicted_block_id_at(pending.pos);
             let authoritative = camera.authoritative_block_id_at(pending.pos);
-            predicted != authoritative
+
+            // Authoritative terrain has converged to the predicted edit.
+            if authoritative == Some(pending.predicted_block_id) {
+                return false;
+            }
+
+            // The local presented/predicted read still carries this edit.
+            if predicted == Some(pending.predicted_block_id) {
+                return true;
+            }
+
+            // The engine presentation path is frame-paced. Immediately after
+            // submit, both predicted and authoritative reads may still expose
+            // the old value. Keep the Vanilla-owned dependency bridge briefly
+            // so a following click can validate against the submitted stream.
+            current_tick.saturating_sub(pending.created_client_tick)
+                <= LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS
         });
     });
 }
@@ -1838,6 +1860,76 @@ mod tests {
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit::clear_block((3, 1, 0))]
         );
+    }
+
+    #[test]
+    fn next_tick_left_then_right_retains_pending_break_until_presented_read_catches_up() {
+        ensure_action_kinds();
+        clear_local_terrain_predictions();
+
+        let mut services = NoopServices;
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Left]);
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(100, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        {
+            // Simulate the runtime frame-paced gap: the second click arrives on
+            // the next client tick, but the camera/presented terrain read still
+            // exposes the pre-break world.
+            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Right]);
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(101, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            break_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[1].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
+        );
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit {
+                pos: (2, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+
+        clear_local_terrain_predictions();
     }
 
     #[test]
