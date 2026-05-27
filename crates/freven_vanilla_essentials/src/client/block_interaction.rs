@@ -52,13 +52,15 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
         .input
         .drain_mouse_button_presses(OWNER, MAX_MOUSE_PRESSES_PER_TICK);
 
-    tracing::debug!(
-        target: "freven_vanilla_essentials::client::block_interaction",
-        owner = OWNER,
-        press_count = presses.len(),
-        presses = ?presses,
-        "drained block interaction mouse presses",
-    );
+    if !presses.is_empty() {
+        tracing::debug!(
+            target: "freven_vanilla_essentials::client::block_interaction",
+            owner = OWNER,
+            press_count = presses.len(),
+            presses = ?presses,
+            "drained block interaction mouse presses",
+        );
+    }
 
     for press in presses {
         tracing::debug!(
@@ -794,6 +796,12 @@ fn log_encode_failure(
     action: ClientMouseButton,
     err: &crate::action_payloads::ActionPayloadError,
 ) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        action = action_name(action),
+        error = %err,
+        "block interaction payload encode failed",
+    );
     tick.log(
         LogLevel::Debug,
         format!(
@@ -809,6 +817,22 @@ fn log_local_validation_reject(
     intent: &TerrainInteractionIntentV2,
     reason: TerrainInteractionRejectReasonV2,
 ) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        action,
+        reason = ?reason,
+        at_input_seq = intent.identity.input_seq,
+        target_pos = ?intent.hit.hit_block_pos,
+        place_pos = ?intent.place.as_ref().map(|place| place.placement_pos),
+        hit_face = ?intent.hit.hit_face,
+        ray_origin_m = ?intent.ray.ray_origin_m,
+        ray_dir = ?intent.ray.ray_dir,
+        prediction_tx = ?intent.identity.prediction_tx,
+        depends_on = ?intent.identity.depends_on,
+        pending_terrain_predictions = %local_pending_prediction_summary(),
+        pending_terrain_prediction_count = local_pending_prediction_count(),
+        "block interaction local prediction rejected",
+    );
     tick.log(
         LogLevel::Debug,
         format!(
@@ -884,6 +908,12 @@ fn log_local_prediction_accepted(
 }
 
 fn log_submit_failure(tick: &mut ClientTickApi<'_>, action: &str, err: ClientActionSubmitError) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        action,
+        error = %err,
+        "block interaction submit failed",
+    );
     tick.log(
         submit_failure_log_level(&err),
         format!("failed to submit {action} action: {err}"),
