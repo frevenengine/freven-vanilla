@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use crate::action_payloads::{try_encode_break_payload_v2, try_encode_place_payload_v2};
@@ -28,23 +27,12 @@ use freven_world_api::{
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
 const MAX_MOUSE_PRESSES_PER_TICK: usize = 8;
-const LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS: u64 = 8;
-thread_local! {
-    static LOCAL_TERRAIN_PREDICTIONS: RefCell<LocalTerrainPredictionState> =
-        const { RefCell::new(LocalTerrainPredictionState {
-        pending: Vec::new(),
-    }) };
-}
-
 pub fn start_client(api: &mut ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
-    clear_local_terrain_predictions();
 }
 
 pub fn tick_client(tick: &mut ClientTickApi<'_>) {
-    prune_local_terrain_predictions(tick.client.camera, tick.tick);
-
     // Drain a bounded ordered click batch. This preserves repeated RMB clicks
     // and LMB/RMB ordering captured by the engine input queue while avoiding
     // unbounded action spam in one client tick.
@@ -63,17 +51,23 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
         );
     }
 
+    let mut batch_predicted_edits = Vec::<ClientPredictedEdit>::new();
+
     for press in presses {
         tracing::debug!(
             target: "freven_vanilla_essentials::client::block_interaction",
             action = ?press.button,
             "handling block interaction mouse press",
         );
-        handle_mouse_press_action(tick, press.button);
+        handle_mouse_press_action(tick, press.button, &mut batch_predicted_edits);
     }
 }
 
-fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseButton) {
+fn handle_mouse_press_action(
+    tick: &mut ClientTickApi<'_>,
+    action: ClientMouseButton,
+    batch_predicted_edits: &mut Vec<ClientPredictedEdit>,
+) {
     // We only allow submitting actions when the client has an active stream.
     let Some((level_id, stream_epoch)) = tick.client.interaction.active_stream() else {
         log_local_skip(tick, action, "no active world stream");
@@ -85,7 +79,9 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
 
     match action {
         ClientMouseButton::Left => {
-            let Some(target) = select_presented_break_target(tick.client.camera) else {
+            let Some(target) =
+                select_presented_break_target(tick.client.camera, batch_predicted_edits)
+            else {
                 log_local_skip(tick, action, missing_target_reason(action));
                 return;
             };
@@ -102,6 +98,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
                 tick.client.players,
                 None,
                 &intent,
+                batch_predicted_edits,
             ) {
                 Ok(admission) => admission,
                 Err(reason) => {
@@ -129,12 +126,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
             // Engine assigns action_seq and owns retransmit/prediction.
             match tick.client.interaction.submit_action(req) {
                 Ok(action_seq) => {
-                    remember_local_terrain_predictions(
-                        action_seq,
-                        intent.identity.prediction_tx,
-                        client_view_tick,
-                        &predicted,
-                    );
+                    batch_predicted_edits.extend(predicted.iter().copied());
                     log_local_prediction_accepted(tick, "break", action_seq, &intent, admission);
                 }
                 Err(err) => log_submit_failure(tick, "break", err),
@@ -142,7 +134,9 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
         }
 
         ClientMouseButton::Right => {
-            let Some(target) = select_presented_place_target(tick.client.camera) else {
+            let Some(target) =
+                select_presented_place_target(tick.client.camera, batch_predicted_edits)
+            else {
                 log_local_skip(tick, action, missing_target_reason(action));
                 return;
             };
@@ -169,6 +163,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
                 tick.client.players,
                 Some(place_block_id),
                 &intent,
+                batch_predicted_edits,
             ) {
                 Ok(admission) => admission,
                 Err(reason) => {
@@ -198,12 +193,7 @@ fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseBu
 
             match tick.client.interaction.submit_action(req) {
                 Ok(action_seq) => {
-                    remember_local_terrain_predictions(
-                        action_seq,
-                        intent.identity.prediction_tx,
-                        client_view_tick,
-                        &predicted,
-                    );
+                    batch_predicted_edits.extend(predicted.iter().copied());
                     log_local_prediction_accepted(tick, "place", action_seq, &intent, admission);
                 }
                 Err(err) => log_submit_failure(tick, "place", err),
@@ -236,20 +226,6 @@ struct PlaceInteractionTarget {
     place_pos: (i32, i32, i32),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PendingTerrainPrediction {
-    action_seq: u32,
-    prediction_tx: TerrainPredictionTransactionIdV2,
-    created_client_tick: u64,
-    pos: (i32, i32, i32),
-    predicted_block_id: BlockRuntimeId,
-}
-
-#[derive(Debug, Default)]
-struct LocalTerrainPredictionState {
-    pending: Vec<PendingTerrainPrediction>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct LocalPredictionAdmission {
     interaction_origin_m: [f32; 3],
@@ -261,11 +237,12 @@ struct LocalPredictionAdmission {
 
 struct ClientPredictedTerrainWorld<'a> {
     camera: &'a dyn ClientCameraHitProvider,
+    batch_predicted_edits: &'a [ClientPredictedEdit],
 }
 
 impl TerrainInteractionWorldViewV2 for ClientPredictedTerrainWorld<'_> {
     fn cell_at(&self, pos: (i32, i32, i32)) -> TerrainInteractionCellV2 {
-        presented_block_id_at(self.camera, pos)
+        presented_block_id_at(self.camera, pos, self.batch_predicted_edits)
             .map(TerrainInteractionCellV2::Loaded)
             .unwrap_or(TerrainInteractionCellV2::NotLoaded)
     }
@@ -292,21 +269,33 @@ impl TerrainInteractionRulesV2 for ClientTerrainRules {
 
 fn select_presented_break_target(
     camera: &dyn ClientCameraHitProvider,
+    batch_predicted_edits: &[ClientPredictedEdit],
 ) -> Option<BreakInteractionTarget> {
     let camera_ray = normalized_camera_ray(camera.camera_ray()?)?;
-    let hit = raycast_presented_cursor_hit(camera, camera_ray, MAX_RAYCAST_DISTANCE_M)?;
+    let hit = raycast_presented_cursor_hit(
+        camera,
+        camera_ray,
+        MAX_RAYCAST_DISTANCE_M,
+        batch_predicted_edits,
+    )?;
 
     Some(BreakInteractionTarget { hit, camera_ray })
 }
 
 fn select_presented_place_target(
     camera: &dyn ClientCameraHitProvider,
+    batch_predicted_edits: &[ClientPredictedEdit],
 ) -> Option<PlaceInteractionTarget> {
     let camera_ray = normalized_camera_ray(camera.camera_ray()?)?;
-    let hit = raycast_presented_cursor_hit(camera, camera_ray, MAX_RAYCAST_DISTANCE_M)?;
+    let hit = raycast_presented_cursor_hit(
+        camera,
+        camera_ray,
+        MAX_RAYCAST_DISTANCE_M,
+        batch_predicted_edits,
+    )?;
 
     let place_pos = add_face_offset(hit.block_pos, hit.face)?;
-    let place_cur = presented_block_id_at(camera, place_pos)?;
+    let place_cur = presented_block_id_at(camera, place_pos, batch_predicted_edits)?;
     if place_cur.0 != 0 {
         return None;
     }
@@ -324,6 +313,7 @@ fn raycast_presented_cursor_hit(
     camera: &dyn ClientCameraHitProvider,
     camera_ray: ClientCameraRay,
     max_distance_m: f32,
+    batch_predicted_edits: &[ClientPredictedEdit],
 ) -> Option<ClientCursorHit> {
     if !max_distance_m.is_finite() || max_distance_m <= 0.0 {
         return None;
@@ -340,7 +330,7 @@ fn raycast_presented_cursor_hit(
 
     let mut hit_face = opposite_dominant_face(dir);
 
-    if presented_block_id_at(camera, pos).is_some_and(|block| block.0 != 0) {
+    if presented_block_id_at(camera, pos, batch_predicted_edits).is_some_and(|block| block.0 != 0) {
         return Some(ClientCursorHit {
             block_pos: pos,
             face: hit_face,
@@ -391,7 +381,9 @@ fn raycast_presented_cursor_hit(
             }
         }
 
-        if presented_block_id_at(camera, pos).is_some_and(|block| block.0 != 0) {
+        if presented_block_id_at(camera, pos, batch_predicted_edits)
+            .is_some_and(|block| block.0 != 0)
+        {
             return Some(ClientCursorHit {
                 block_pos: pos,
                 face: hit_face,
@@ -406,18 +398,14 @@ fn raycast_presented_cursor_hit(
 fn presented_block_id_at(
     camera: &dyn ClientCameraHitProvider,
     pos: (i32, i32, i32),
+    batch_predicted_edits: &[ClientPredictedEdit],
 ) -> Option<BlockRuntimeId> {
-    LOCAL_TERRAIN_PREDICTIONS
-        .with(|state| {
-            state
-                .borrow()
-                .pending
-                .iter()
-                .rev()
-                .find(|pending| pending.pos == pos)
-                .map(|pending| pending.predicted_block_id)
-        })
-        .or_else(|| camera.predicted_block_id_at(pos))
+    batch_predicted_edits
+        .iter()
+        .rev()
+        .find(|edit| edit.pos == pos)
+        .map(|edit| edit.predicted_block_id)
+        .or_else(|| camera.presented_block_id_at(OWNER, pos))
 }
 
 fn floor_to_i32(value: f32) -> Option<i32> {
@@ -594,6 +582,7 @@ fn validate_local_prediction_admission(
     players: &mut dyn ClientPlayerProvider,
     allowed_place_block_id: Option<BlockRuntimeId>,
     intent: &TerrainInteractionIntentV2,
+    batch_predicted_edits: &[ClientPredictedEdit],
 ) -> Result<LocalPredictionAdmission, TerrainInteractionRejectReasonV2> {
     let Some(player_center_pos_m) = local_player_center_pos_m(players) else {
         return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
@@ -606,7 +595,10 @@ fn validate_local_prediction_admission(
     policy.min_input_seq = Some(intent.identity.input_seq);
     policy.max_input_seq = Some(intent.identity.input_seq);
 
-    let world = ClientPredictedTerrainWorld { camera };
+    let world = ClientPredictedTerrainWorld {
+        camera,
+        batch_predicted_edits,
+    };
     let rules = ClientTerrainRules {
         allowed_place_block_id,
     };
@@ -616,26 +608,12 @@ fn validate_local_prediction_admission(
     }
 
     let target_pos = intent.hit.hit_block_pos;
-    let target_predicted_block = presented_block_id_at(camera, target_pos);
+    let target_predicted_block = presented_block_id_at(camera, target_pos, batch_predicted_edits);
     let target_authoritative_block = camera.authoritative_block_id_at(target_pos);
     let place_pos = intent.place.as_ref().map(|place| place.placement_pos);
-    let place_predicted_block = place_pos.and_then(|pos| presented_block_id_at(camera, pos));
+    let place_predicted_block =
+        place_pos.and_then(|pos| presented_block_id_at(camera, pos, batch_predicted_edits));
     let place_authoritative_block = place_pos.and_then(|pos| camera.authoritative_block_id_at(pos));
-
-    // Local prediction is admitted against the client-presented terrain stream.
-    // The server still revalidates and remains authoritative; convergence comes
-    // from ActionResult and ordered WorldDelta terrain_rev updates. An
-    // authoritative snapshot that has not caught up to a pending local edit is
-    // diagnostic context, not a local veto by itself.
-    if let Some(reason) = unexplained_authoritative_impossibility(
-        intent,
-        target_predicted_block,
-        target_authoritative_block,
-        place_predicted_block,
-        place_authoritative_block,
-    ) {
-        return Err(reason);
-    }
 
     Ok(LocalPredictionAdmission {
         interaction_origin_m,
@@ -644,44 +622,6 @@ fn validate_local_prediction_admission(
         place_predicted_block,
         place_authoritative_block,
     })
-}
-
-fn unexplained_authoritative_impossibility(
-    intent: &TerrainInteractionIntentV2,
-    target_predicted: Option<BlockRuntimeId>,
-    target_authoritative: Option<BlockRuntimeId>,
-    place_predicted: Option<BlockRuntimeId>,
-    place_authoritative: Option<BlockRuntimeId>,
-) -> Option<TerrainInteractionRejectReasonV2> {
-    let target_pos = intent.hit.hit_block_pos;
-    let target_auth_air = target_authoritative.is_some_and(|block| block.0 == 0);
-    let target_pred_solid = target_predicted.is_some_and(|block| block.0 != 0);
-    if target_pred_solid
-        && target_auth_air
-        && !prediction_mismatch_is_explained(target_pos, target_predicted, target_authoritative)
-    {
-        return Some(match intent.identity.kind {
-            TerrainInteractionKindV2::Break => TerrainInteractionRejectReasonV2::TargetNotSolid,
-            TerrainInteractionKindV2::Place => TerrainInteractionRejectReasonV2::SupportNotSolid,
-        });
-    }
-
-    if let Some(place) = intent.place.as_ref() {
-        let place_auth_occupied = place_authoritative.is_some_and(|block| block.0 != 0);
-        let place_pred_empty = place_predicted.is_some_and(|block| block.0 == 0);
-        if place_pred_empty
-            && place_auth_occupied
-            && !prediction_mismatch_is_explained(
-                place.placement_pos,
-                place_predicted,
-                place_authoritative,
-            )
-        {
-            return Some(TerrainInteractionRejectReasonV2::PlacementNotEmpty);
-        }
-    }
-
-    None
 }
 
 fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[f32; 3]> {
@@ -693,124 +633,16 @@ fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[
         .map(|view| [view.world_pos_m.0, view.world_pos_m.1, view.world_pos_m.2])
 }
 
-fn prediction_mismatch_is_explained(
-    pos: (i32, i32, i32),
-    predicted: Option<BlockRuntimeId>,
-    authoritative: Option<BlockRuntimeId>,
-) -> bool {
-    if predicted == authoritative {
-        return true;
-    }
-    let Some(predicted_block_id) = predicted else {
-        return false;
-    };
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
-        state
-            .borrow()
-            .pending
-            .iter()
-            .any(|pending| pending.pos == pos && pending.predicted_block_id == predicted_block_id)
-    })
-}
-
-fn remember_local_terrain_predictions(
-    action_seq: u32,
-    prediction_tx: TerrainPredictionTransactionIdV2,
-    created_client_tick: u64,
-    predicted: &[ClientPredictedEdit],
-) {
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
-        let mut state = state.borrow_mut();
-        for edit in predicted {
-            state.pending.push(PendingTerrainPrediction {
-                action_seq,
-                prediction_tx,
-                created_client_tick,
-                pos: edit.pos,
-                predicted_block_id: edit.predicted_block_id,
-            });
-        }
-    });
-}
-
-fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider, current_tick: u64) {
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
-        state.borrow_mut().pending.retain(|pending| {
-            let age_ticks = current_tick.saturating_sub(pending.created_client_tick);
-
-            // The engine presentation path is frame-paced. Immediately after
-            // submit, camera reads can briefly expose a mix of old,
-            // optimistic, and authoritative-looking values. Keep the
-            // Vanilla-owned dependency bridge unconditionally during this
-            // short bounded window so a following click validates against the
-            // submitted local stream.
-            if age_ticks <= LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS {
-                return true;
-            }
-
-            let predicted = camera.predicted_block_id_at(pending.pos);
-            let authoritative = camera.authoritative_block_id_at(pending.pos);
-
-            // Authoritative terrain has converged to the predicted edit.
-            if authoritative == Some(pending.predicted_block_id) {
-                return false;
-            }
-
-            // The local presented/predicted read still carries this edit.
-            predicted == Some(pending.predicted_block_id)
-        });
-    });
-}
-
-fn clear_local_terrain_predictions() {
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| state.borrow_mut().pending.clear());
-}
-
-fn local_pending_prediction_count() -> usize {
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| state.borrow().pending.len())
-}
-
-fn local_pending_prediction_summary() -> String {
-    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
-        let state = state.borrow();
-        if state.pending.is_empty() {
-            return "[]".to_string();
-        }
-
-        let mut summary = String::from("[");
-        for (index, pending) in state.pending.iter().take(4).enumerate() {
-            if index > 0 {
-                summary.push_str(", ");
-            }
-            summary.push_str(&format!(
-                "{{action_seq={}, tx={:?}, pos={:?}, predicted={:?}}}",
-                pending.action_seq, pending.prediction_tx, pending.pos, pending.predicted_block_id
-            ));
-        }
-        if state.pending.len() > 4 {
-            summary.push_str(", ...");
-        }
-        summary.push(']');
-        summary
-    })
-}
-
 fn log_local_skip(tick: &mut ClientTickApi<'_>, action: ClientMouseButton, reason: &str) {
-    let pending_summary = local_pending_prediction_summary();
-    let pending_count = local_pending_prediction_count();
     tracing::debug!(
         target: "freven_vanilla_essentials::client::block_interaction",
         action = action_name(action),
         reason,
-        pending_terrain_predictions = %pending_summary,
-        pending_terrain_prediction_count = pending_count,
         "block interaction not submitted",
     );
     let message = format!(
-        "{} interaction not submitted: {reason} pending_terrain_predictions={} pending_terrain_prediction_count={}",
-        action_name(action),
-        pending_summary,
-        pending_count,
+        "{} interaction not submitted: {reason}",
+        action_name(action)
     );
     tick.log(LogLevel::Debug, message.clone());
     emit_log(LogLevel::Debug, message);
@@ -854,8 +686,6 @@ fn log_local_validation_reject(
         ray_dir = ?intent.ray.ray_dir,
         prediction_tx = ?intent.identity.prediction_tx,
         depends_on = ?intent.identity.depends_on,
-        pending_terrain_predictions = %local_pending_prediction_summary(),
-        pending_terrain_prediction_count = local_pending_prediction_count(),
         "block interaction local prediction rejected",
     );
     tick.log(
@@ -864,7 +694,7 @@ fn log_local_validation_reject(
             "{action} interaction not submitted: local v2 prediction validation rejected \
              reason={reason:?} action_seq=missing-pre-submit at_input_seq={} target_pos={:?} \
              place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} prediction_tx={:?} \
-             depends_on={:?} pending_terrain_predictions={} pending_terrain_prediction_count={}",
+             depends_on={:?}",
             intent.identity.input_seq,
             intent.hit.hit_block_pos,
             intent.place.as_ref().map(|place| place.placement_pos),
@@ -873,8 +703,6 @@ fn log_local_validation_reject(
             intent.ray.ray_dir,
             intent.identity.prediction_tx,
             intent.identity.depends_on,
-            local_pending_prediction_summary(),
-            local_pending_prediction_count(),
         ),
     );
 }
@@ -900,8 +728,6 @@ fn log_local_prediction_accepted(
         authoritative_target_block = ?admission.target_authoritative_block,
         predicted_place_block = ?admission.place_predicted_block,
         authoritative_place_block = ?admission.place_authoritative_block,
-        pending_terrain_predictions = %local_pending_prediction_summary(),
-        pending_terrain_prediction_count = local_pending_prediction_count(),
         "block interaction local prediction accepted",
     );
 
@@ -910,8 +736,7 @@ fn log_local_prediction_accepted(
          target_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} \
          client_interaction_origin_m={:?} predicted_target_block={:?} \
          authoritative_target_block={:?} predicted_place_block={:?} \
-         authoritative_place_block={:?} prediction_tx={:?} depends_on={:?} \
-         pending_terrain_predictions={} pending_terrain_prediction_count={}",
+         authoritative_place_block={:?} prediction_tx={:?} depends_on={:?}",
         intent.identity.input_seq,
         intent.hit.hit_block_pos,
         intent.place.as_ref().map(|place| place.placement_pos),
@@ -925,8 +750,6 @@ fn log_local_prediction_accepted(
         admission.place_authoritative_block,
         intent.identity.prediction_tx,
         intent.identity.depends_on,
-        local_pending_prediction_summary(),
-        local_pending_prediction_count(),
     );
     tick.log(LogLevel::Debug, message.clone());
     emit_log(LogLevel::Debug, message);
@@ -1300,6 +1123,14 @@ mod tests {
                     .unwrap_or(&BlockRuntimeId(0)),
             )
         }
+
+        fn presented_block_id_at(
+            &self,
+            _owner: &str,
+            pos: (i32, i32, i32),
+        ) -> Option<BlockRuntimeId> {
+            self.predicted_block_id_at(pos)
+        }
     }
 
     #[derive(Default)]
@@ -1434,7 +1265,6 @@ mod tests {
     }
 
     fn ensure_action_kinds() {
-        clear_local_terrain_predictions();
         let _ = crate::VANILLA_ACTION_KINDS.get_or_init(|| crate::VanillaActionKinds {
             break_kind: ActionKindId(1),
             place_kind: ActionKindId(2),
@@ -1717,12 +1547,11 @@ mod tests {
     }
 
     #[test]
-    fn rapid_break_spam_stale_predicted_only_target_does_not_flash_prediction() {
+    fn engine_presented_predicted_only_break_target_is_locally_submitted() {
         ensure_action_kinds();
 
-        // A predicted-only solid with no remembered pending edit is not a
-        // valid dependency. Suppress it locally so a stale visual target does
-        // not flash another prediction before the server can reject it.
+        // Vanilla trusts engine-presented terrain for local prediction.
+        // Stale overlay lifecycle is owned by the engine prediction/reconciliation layer.
         let mut services = NoopServices;
         let mut input = TestInput {
             left: true,
@@ -1746,17 +1575,27 @@ mod tests {
                 &mut interaction,
                 &mut players,
             );
-            let mut tick = ClientTickApi::new(13, std::time::Duration::from_millis(33), client);
+            let mut tick = ClientTickApi::new(11, std::time::Duration::from_millis(33), client);
             tick_client(&mut tick);
         }
 
-        assert!(interaction.requests.is_empty());
+        assert_eq!(interaction.requests.len(), 1);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            break_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
+        );
     }
 
     #[test]
-    fn rapid_place_spam_authoritative_occupied_cell_does_not_flash_prediction() {
+    fn engine_presented_empty_place_cell_is_locally_submitted() {
         ensure_action_kinds();
 
+        // Vanilla trusts engine-presented terrain for local prediction.
+        // Stale overlay lifecycle is owned by the engine prediction/reconciliation layer.
         let mut services = NoopServices;
         let mut input = TestInput {
             left: false,
@@ -1765,11 +1604,11 @@ mod tests {
         let mut camera = PresentedCamera::new(ClientCursorHit {
             block_pos: (2, 1, 0),
             face: ClientBlockFace::NegX,
-            distance_m: 1.5,
+            distance_m: 2.0,
         })
         .with_block((2, 1, 0), 1)
         .with_predicted_block((1, 1, 0), 0)
-        .with_authoritative_block((1, 1, 0), 2);
+        .with_authoritative_block((1, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -1781,11 +1620,22 @@ mod tests {
                 &mut interaction,
                 &mut players,
             );
-            let mut tick = ClientTickApi::new(14, std::time::Duration::from_millis(33), client);
+            let mut tick = ClientTickApi::new(12, std::time::Duration::from_millis(33), client);
             tick_client(&mut tick);
         }
 
-        assert!(interaction.requests.is_empty());
+        assert_eq!(interaction.requests.len(), 1);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit {
+                pos: (1, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
     }
 
     #[test]
@@ -1862,128 +1712,6 @@ mod tests {
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit::clear_block((3, 1, 0))]
-        );
-    }
-
-    #[test]
-    fn next_tick_left_then_right_retains_pending_break_through_grace_window() {
-        ensure_action_kinds();
-        clear_local_terrain_predictions();
-
-        let mut services = NoopServices;
-        let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (2, 1, 0),
-            face: ClientBlockFace::NegX,
-            distance_m: 1.5,
-        })
-        .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1)
-        .with_block((3, 1, 0), 1);
-        let mut interaction = RecordingInteraction::default();
-        let mut players = NoopPlayers;
-
-        {
-            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Left]);
-            let client = ClientApi::new(
-                &mut services,
-                &mut input,
-                &mut camera,
-                &mut interaction,
-                &mut players,
-            );
-            let mut tick = ClientTickApi::new(100, std::time::Duration::from_millis(33), client);
-            tick_client(&mut tick);
-        }
-
-        {
-            // Simulate the runtime frame-paced gap: the second click arrives on
-            // the next client tick, but the camera/presented terrain read still
-            // exposes the pre-break world.
-            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Right]);
-            let client = ClientApi::new(
-                &mut services,
-                &mut input,
-                &mut camera,
-                &mut interaction,
-                &mut players,
-            );
-            let mut tick = ClientTickApi::new(101, std::time::Duration::from_millis(33), client);
-            tick_client(&mut tick);
-        }
-
-        assert_eq!(interaction.requests.len(), 2);
-        assert_eq!(
-            interaction.requests[0].action_kind_id,
-            break_action_kind_id()
-        );
-        assert_eq!(
-            interaction.requests[1].action_kind_id,
-            place_action_kind_id()
-        );
-        assert_eq!(
-            interaction.requests[0].predicted,
-            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
-        );
-        assert_eq!(
-            interaction.requests[1].predicted,
-            vec![ClientPredictedEdit {
-                pos: (2, 1, 0),
-                predicted_block_id: BlockRuntimeId(3),
-            }]
-        );
-
-        clear_local_terrain_predictions();
-    }
-
-    #[test]
-    fn ordered_same_tick_left_then_right_submits_both_actions() {
-        ensure_action_kinds();
-
-        let mut services = NoopServices;
-        let mut input =
-            OrderedTestInput::new(vec![ClientMouseButton::Left, ClientMouseButton::Right]);
-        let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (2, 1, 0),
-            face: ClientBlockFace::NegX,
-            distance_m: 1.5,
-        })
-        .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1)
-        .with_block((3, 1, 0), 1);
-        let mut interaction = RecordingInteraction::default();
-        let mut players = NoopPlayers;
-
-        {
-            let client = ClientApi::new(
-                &mut services,
-                &mut input,
-                &mut camera,
-                &mut interaction,
-                &mut players,
-            );
-            let mut tick = ClientTickApi::new(21, std::time::Duration::from_millis(33), client);
-            tick_client(&mut tick);
-        }
-
-        assert_eq!(interaction.requests.len(), 2);
-        assert_eq!(
-            interaction.requests[0].action_kind_id,
-            break_action_kind_id()
-        );
-        assert_eq!(
-            interaction.requests[1].action_kind_id,
-            place_action_kind_id()
-        );
-        assert_eq!(
-            interaction.requests[0].predicted,
-            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
-        );
-        assert_eq!(
-            interaction.requests[1].predicted,
-            vec![ClientPredictedEdit {
-                pos: (2, 1, 0),
-                predicted_block_id: BlockRuntimeId(3),
-            }]
         );
     }
 
@@ -2264,7 +1992,7 @@ mod tests {
         let mut players = NoopPlayers;
 
         let client_validation =
-            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+            validate_local_prediction_admission(&camera, &mut players, None, &intent, &[]);
 
         assert!(
             client_validation.is_ok(),
@@ -2292,7 +2020,7 @@ mod tests {
         .with_block((2, 1, 0), 1);
         let mut players = NoopPlayers;
         let client_validation =
-            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+            validate_local_prediction_admission(&camera, &mut players, None, &intent, &[]);
 
         assert!(matches!(
             server_validation,
@@ -2316,7 +2044,7 @@ mod tests {
         let mut players = NoopPlayers;
 
         let client_validation =
-            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+            validate_local_prediction_admission(&camera, &mut players, None, &intent, &[]);
 
         assert_eq!(
             client_validation,
