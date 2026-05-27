@@ -11,7 +11,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "freven_avatar_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_avatar_sdk_types",
  "freven_block_api",
@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "freven_avatar_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_world_api",
  "freven_world_guest",
@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "freven_block_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_block_guest",
  "freven_block_sdk_types",
@@ -40,7 +40,7 @@ dependencies = [
 [[package]]
 name = "freven_block_guest"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_block_sdk_types",
  "serde",
@@ -49,7 +49,7 @@ dependencies = [
 [[package]]
 name = "freven_block_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "serde",
 ]
@@ -57,7 +57,7 @@ dependencies = [
 [[package]]
 name = "freven_gameplay_state_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_gameplay_state_guest",
  "freven_gameplay_state_sdk_types",
@@ -66,7 +66,7 @@ dependencies = [
 [[package]]
 name = "freven_gameplay_state_guest"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_gameplay_state_sdk_types",
  "serde",
@@ -75,7 +75,7 @@ dependencies = [
 [[package]]
 name = "freven_gameplay_state_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "serde",
 ]
@@ -83,7 +83,7 @@ dependencies = [
 [[package]]
 name = "freven_guest"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_sdk_types",
  "serde",
@@ -92,7 +92,7 @@ dependencies = [
 [[package]]
 name = "freven_mod_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_guest",
  "freven_sdk_types",
@@ -104,7 +104,7 @@ dependencies = [
 [[package]]
 name = "freven_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "serde",
 ]
@@ -138,7 +138,7 @@ dependencies = [
 [[package]]
 name = "freven_volumetric_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_block_sdk_types",
  "freven_volumetric_sdk_types",
@@ -149,7 +149,7 @@ dependencies = [
 [[package]]
 name = "freven_volumetric_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "serde",
 ]
@@ -157,7 +157,7 @@ dependencies = [
 [[package]]
 name = "freven_world_api"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_block_api",
  "freven_block_guest",
@@ -179,7 +179,7 @@ dependencies = [
 [[package]]
 name = "freven_world_guest"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "freven_block_guest",
  "freven_block_sdk_types",
@@ -196,7 +196,7 @@ dependencies = [
 [[package]]
 name = "freven_world_sdk_types"
 version = "0.1.0"
-source = "git+https://github.com/frevenengine/freven-sdk.git#9b5ec44cd2073035f1e46a5cefd20e1529bd5bc5"
+source = "git+https://github.com/frevenengine/freven-sdk.git#0e2db87e93b7f55a3b92726ca8fbba8e55102333"
 dependencies = [
  "serde",
 ]
