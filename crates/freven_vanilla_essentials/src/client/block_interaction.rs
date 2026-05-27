@@ -246,8 +246,7 @@ struct ClientPredictedTerrainWorld<'a> {
 
 impl TerrainInteractionWorldViewV2 for ClientPredictedTerrainWorld<'_> {
     fn cell_at(&self, pos: (i32, i32, i32)) -> TerrainInteractionCellV2 {
-        self.camera
-            .predicted_block_id_at(pos)
+        presented_block_id_at(self.camera, pos)
             .map(TerrainInteractionCellV2::Loaded)
             .unwrap_or(TerrainInteractionCellV2::NotLoaded)
     }
@@ -276,11 +275,7 @@ fn select_presented_break_target(
     camera: &dyn ClientCameraHitProvider,
 ) -> Option<BreakInteractionTarget> {
     let camera_ray = normalized_camera_ray(camera.camera_ray()?)?;
-    let hit = camera.predicted_cursor_hit(MAX_RAYCAST_DISTANCE_M)?;
-    let hit_block = camera.predicted_block_id_at(hit.block_pos)?;
-    if hit_block.0 == 0 {
-        return None;
-    }
+    let hit = raycast_presented_cursor_hit(camera, camera_ray, MAX_RAYCAST_DISTANCE_M)?;
 
     Some(BreakInteractionTarget { hit, camera_ray })
 }
@@ -289,14 +284,10 @@ fn select_presented_place_target(
     camera: &dyn ClientCameraHitProvider,
 ) -> Option<PlaceInteractionTarget> {
     let camera_ray = normalized_camera_ray(camera.camera_ray()?)?;
-    let hit = camera.predicted_cursor_hit(MAX_RAYCAST_DISTANCE_M)?;
-    let hit_block = camera.predicted_block_id_at(hit.block_pos)?;
-    if hit_block.0 == 0 {
-        return None;
-    }
+    let hit = raycast_presented_cursor_hit(camera, camera_ray, MAX_RAYCAST_DISTANCE_M)?;
 
     let place_pos = add_face_offset(hit.block_pos, hit.face)?;
-    let place_cur = camera.predicted_block_id_at(place_pos)?;
+    let place_cur = presented_block_id_at(camera, place_pos)?;
     if place_cur.0 != 0 {
         return None;
     }
@@ -306,6 +297,183 @@ fn select_presented_place_target(
         camera_ray,
         place_pos,
     })
+}
+
+const MAX_PRESENTED_RAYCAST_STEPS: usize = 128;
+
+fn raycast_presented_cursor_hit(
+    camera: &dyn ClientCameraHitProvider,
+    camera_ray: ClientCameraRay,
+    max_distance_m: f32,
+) -> Option<ClientCursorHit> {
+    if !max_distance_m.is_finite() || max_distance_m <= 0.0 {
+        return None;
+    }
+
+    let origin = camera_ray.origin;
+    let dir = camera_ray.direction;
+
+    let mut pos = (
+        floor_to_i32(origin[0])?,
+        floor_to_i32(origin[1])?,
+        floor_to_i32(origin[2])?,
+    );
+
+    let mut hit_face = opposite_dominant_face(dir);
+
+    if presented_block_id_at(camera, pos).is_some_and(|block| block.0 != 0) {
+        return Some(ClientCursorHit {
+            block_pos: pos,
+            face: hit_face,
+            distance_m: 0.0,
+        });
+    }
+
+    let step_x = axis_step(dir[0]);
+    let step_y = axis_step(dir[1]);
+    let step_z = axis_step(dir[2]);
+
+    let mut t_max_x = axis_initial_t_max(origin[0], dir[0], step_x);
+    let mut t_max_y = axis_initial_t_max(origin[1], dir[1], step_y);
+    let mut t_max_z = axis_initial_t_max(origin[2], dir[2], step_z);
+
+    let t_delta_x = axis_t_delta(dir[0]);
+    let t_delta_y = axis_t_delta(dir[1]);
+    let t_delta_z = axis_t_delta(dir[2]);
+
+    for _ in 0..MAX_PRESENTED_RAYCAST_STEPS {
+        let (axis, distance_m) = if t_max_x <= t_max_y && t_max_x <= t_max_z {
+            (0, t_max_x)
+        } else if t_max_y <= t_max_z {
+            (1, t_max_y)
+        } else {
+            (2, t_max_z)
+        };
+
+        if !distance_m.is_finite() || distance_m > max_distance_m {
+            return None;
+        }
+
+        match axis {
+            0 => {
+                pos.0 = pos.0.checked_add(step_x)?;
+                hit_face = face_for_axis_step(0, step_x)?;
+                t_max_x += t_delta_x;
+            }
+            1 => {
+                pos.1 = pos.1.checked_add(step_y)?;
+                hit_face = face_for_axis_step(1, step_y)?;
+                t_max_y += t_delta_y;
+            }
+            _ => {
+                pos.2 = pos.2.checked_add(step_z)?;
+                hit_face = face_for_axis_step(2, step_z)?;
+                t_max_z += t_delta_z;
+            }
+        }
+
+        if presented_block_id_at(camera, pos).is_some_and(|block| block.0 != 0) {
+            return Some(ClientCursorHit {
+                block_pos: pos,
+                face: hit_face,
+                distance_m: distance_m.max(0.0),
+            });
+        }
+    }
+
+    None
+}
+
+fn presented_block_id_at(
+    camera: &dyn ClientCameraHitProvider,
+    pos: (i32, i32, i32),
+) -> Option<BlockRuntimeId> {
+    LOCAL_TERRAIN_PREDICTIONS
+        .with(|state| {
+            state
+                .borrow()
+                .pending
+                .iter()
+                .rev()
+                .find(|pending| pending.pos == pos)
+                .map(|pending| pending.predicted_block_id)
+        })
+        .or_else(|| camera.predicted_block_id_at(pos))
+}
+
+fn floor_to_i32(value: f32) -> Option<i32> {
+    if !value.is_finite() || value < i32::MIN as f32 || value > i32::MAX as f32 {
+        return None;
+    }
+    Some(value.floor() as i32)
+}
+
+fn axis_step(value: f32) -> i32 {
+    if value > 0.0 {
+        1
+    } else if value < 0.0 {
+        -1
+    } else {
+        0
+    }
+}
+
+fn axis_initial_t_max(origin: f32, direction: f32, step: i32) -> f32 {
+    if step == 0 {
+        return f32::INFINITY;
+    }
+
+    let boundary = if step > 0 {
+        origin.floor() + 1.0
+    } else {
+        origin.floor()
+    };
+
+    ((boundary - origin) / direction).max(0.0)
+}
+
+fn axis_t_delta(direction: f32) -> f32 {
+    if direction == 0.0 {
+        f32::INFINITY
+    } else {
+        (1.0 / direction).abs()
+    }
+}
+
+fn face_for_axis_step(axis: usize, step: i32) -> Option<ClientBlockFace> {
+    match (axis, step) {
+        (0, 1) => Some(ClientBlockFace::NegX),
+        (0, -1) => Some(ClientBlockFace::PosX),
+        (1, 1) => Some(ClientBlockFace::NegY),
+        (1, -1) => Some(ClientBlockFace::PosY),
+        (2, 1) => Some(ClientBlockFace::NegZ),
+        (2, -1) => Some(ClientBlockFace::PosZ),
+        _ => None,
+    }
+}
+
+fn opposite_dominant_face(dir: [f32; 3]) -> ClientBlockFace {
+    let ax = dir[0].abs();
+    let ay = dir[1].abs();
+    let az = dir[2].abs();
+
+    if ax >= ay && ax >= az {
+        if dir[0] >= 0.0 {
+            ClientBlockFace::NegX
+        } else {
+            ClientBlockFace::PosX
+        }
+    } else if ay >= az {
+        if dir[1] >= 0.0 {
+            ClientBlockFace::NegY
+        } else {
+            ClientBlockFace::PosY
+        }
+    } else if dir[2] >= 0.0 {
+        ClientBlockFace::NegZ
+    } else {
+        ClientBlockFace::PosZ
+    }
 }
 
 fn build_break_intent(
@@ -429,10 +597,10 @@ fn validate_local_prediction_admission(
     }
 
     let target_pos = intent.hit.hit_block_pos;
-    let target_predicted_block = camera.predicted_block_id_at(target_pos);
+    let target_predicted_block = presented_block_id_at(camera, target_pos);
     let target_authoritative_block = camera.authoritative_block_id_at(target_pos);
     let place_pos = intent.place.as_ref().map(|place| place.placement_pos);
-    let place_predicted_block = place_pos.and_then(|pos| camera.predicted_block_id_at(pos));
+    let place_predicted_block = place_pos.and_then(|pos| presented_block_id_at(camera, pos));
     let place_authoritative_block = place_pos.and_then(|pos| camera.authoritative_block_id_at(pos));
 
     // Local prediction is admitted against the client-presented terrain stream.
@@ -1377,7 +1545,8 @@ mod tests {
             distance_m: 2.0,
         })
         .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1);
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -1611,7 +1780,8 @@ mod tests {
             distance_m: 1.5,
         })
         .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1);
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -1643,7 +1813,7 @@ mod tests {
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit {
-                pos: (1, 1, 0),
+                pos: (2, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
@@ -1698,7 +1868,7 @@ mod tests {
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit {
-                pos: (1, 1, 0),
+                pos: (0, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
