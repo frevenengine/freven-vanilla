@@ -5,7 +5,7 @@ use crate::actions::targeting::{MAX_ACTION_REACH_M, humanoid_interaction_origin_
 use freven_block_api::{
     BlockMutationResult, BlockWorldViewTerrainAdapter, TerrainInteractionRulesV2,
     TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
-    validate_terrain_interaction_v2,
+    validate_terrain_interaction_v2_report,
 };
 use freven_block_guest::BlockMutation;
 use freven_block_sdk_types::BlockRuntimeId;
@@ -43,10 +43,10 @@ impl ActionHandler for BreakActionHandler {
             let rules = VanillaBreakRules {
                 world: &**block_authority,
             };
-            validate_terrain_interaction_v2(&world, &rules, &policy, &intent)
+            validate_terrain_interaction_v2_report(&world, &rules, &policy, &intent)
         };
 
-        if let TerrainInteractionValidationV2::Rejected(reason) = validation {
+        if let TerrainInteractionValidationV2::Rejected(reason) = validation.validation {
             let target_pos = intent.hit.hit_block_pos;
             let target_block = block_authority.block(target_pos.0, target_pos.1, target_pos.2);
             tracing::debug!(
@@ -62,6 +62,7 @@ impl ActionHandler for BreakActionHandler {
                 ray_dir = ?intent.ray.ray_dir,
                 authoritative_target_block = ?target_block,
                 server_interaction_origin_m = ?authoritative_origin_m,
+                trace = ?validation.trace,
                 "terrain interaction rejected",
             );
             emit_log(
@@ -71,7 +72,7 @@ impl ActionHandler for BreakActionHandler {
                      action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?} \
                      hit_block_pos={:?} place_pos=None hit_face={:?} ray_origin_m={:?} \
                      ray_dir={:?} authoritative_target_block={:?} \
-                     authoritative_place_block=None server_interaction_origin_m={:?}",
+                     authoritative_place_block=None server_interaction_origin_m={:?} trace={:?}",
                     ctx.player_id,
                     cmd.seq,
                     intent.identity.action_seq,
@@ -83,6 +84,7 @@ impl ActionHandler for BreakActionHandler {
                     intent.ray.ray_dir,
                     target_block,
                     authoritative_origin_m,
+                    validation.trace,
                 ),
             );
             return ActionOutcome::Rejected;
