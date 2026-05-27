@@ -19,7 +19,7 @@ use freven_block_guest::{
     BlockQueryRequest, BlockQueryResponse, BlockServiceRequest, BlockServiceResponse,
 };
 use freven_block_sdk_types::BlockRuntimeId;
-use freven_mod_api::LogLevel;
+use freven_mod_api::{LogLevel, emit_log};
 use freven_world_api::{
     ClientActionRequest, ClientActionSubmitError, Services, WorldServiceRequest,
     WorldServiceResponse,
@@ -756,13 +756,14 @@ fn local_pending_prediction_summary() -> String {
 }
 
 fn log_local_skip(tick: &mut ClientTickApi<'_>, action: ClientMouseButton, reason: &str) {
-    tick.log(
-        LogLevel::Debug,
-        format!(
-            "{} interaction not submitted: {reason}",
-            action_name(action)
-        ),
+    let message = format!(
+        "{} interaction not submitted: {reason} pending_terrain_predictions={} pending_terrain_prediction_count={}",
+        action_name(action),
+        local_pending_prediction_summary(),
+        local_pending_prediction_count(),
     );
+    tick.log(LogLevel::Debug, message.clone());
+    emit_log(LogLevel::Debug, message);
 }
 
 fn log_encode_failure(
@@ -791,7 +792,7 @@ fn log_local_validation_reject(
             "{action} interaction not submitted: local v2 prediction validation rejected \
              reason={reason:?} action_seq=missing-pre-submit at_input_seq={} target_pos={:?} \
              place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} prediction_tx={:?} \
-             depends_on={:?} pending_terrain_predictions={}",
+             depends_on={:?} pending_terrain_predictions={} pending_terrain_prediction_count={}",
             intent.identity.input_seq,
             intent.hit.hit_block_pos,
             intent.place.as_ref().map(|place| place.placement_pos),
@@ -801,6 +802,7 @@ fn log_local_validation_reject(
             intent.identity.prediction_tx,
             intent.identity.depends_on,
             local_pending_prediction_summary(),
+            local_pending_prediction_count(),
         ),
     );
 }
