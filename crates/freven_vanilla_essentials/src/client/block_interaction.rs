@@ -442,24 +442,18 @@ fn validate_local_prediction_admission(
     let place_predicted_block = place_pos.and_then(|pos| camera.predicted_block_id_at(pos));
     let place_authoritative_block = place_pos.and_then(|pos| camera.authoritative_block_id_at(pos));
 
-    if has_unexplained_prediction_mismatch(
-        target_pos,
+    // Local prediction is admitted against the client-presented terrain stream.
+    // The server still revalidates and remains authoritative; convergence comes
+    // from ActionResult and ordered WorldDelta terrain_rev updates. An
+    // authoritative snapshot that has not caught up to a pending local edit is
+    // diagnostic context, not a local veto by itself.
+    if let Some(reason) = unexplained_authoritative_impossibility(
+        intent,
         target_predicted_block,
         target_authoritative_block,
+        place_predicted_block,
+        place_authoritative_block,
     ) {
-        return Err(TerrainInteractionRejectReasonV2::StateMismatch);
-    }
-    if let Some(pos) = place_pos
-        && has_unexplained_prediction_mismatch(
-            pos,
-            place_predicted_block,
-            place_authoritative_block,
-        )
-    {
-        return Err(TerrainInteractionRejectReasonV2::StateMismatch);
-    }
-
-    if let Some(reason) = authoritative_cursor_conflict(camera, intent) {
         return Err(reason);
     }
 
@@ -472,42 +466,42 @@ fn validate_local_prediction_admission(
     })
 }
 
-fn authoritative_cursor_conflict(
-    camera: &dyn ClientCameraHitProvider,
+fn unexplained_authoritative_impossibility(
     intent: &TerrainInteractionIntentV2,
+    target_predicted: Option<BlockRuntimeId>,
+    target_authoritative: Option<BlockRuntimeId>,
+    place_predicted: Option<BlockRuntimeId>,
+    place_authoritative: Option<BlockRuntimeId>,
 ) -> Option<TerrainInteractionRejectReasonV2> {
-    let authoritative_hit = camera.authoritative_cursor_hit(MAX_RAYCAST_DISTANCE_M)?;
-    let expected_hit_pos = intent.hit.hit_block_pos;
-    if authoritative_hit.block_pos == expected_hit_pos {
-        return None;
-    }
-    let expected_predicted = camera.predicted_block_id_at(expected_hit_pos);
-    let expected_authoritative = camera.authoritative_block_id_at(expected_hit_pos);
-    if expected_predicted != expected_authoritative
-        && prediction_mismatch_is_explained(
-            expected_hit_pos,
-            expected_predicted,
-            expected_authoritative,
-        )
+    let target_pos = intent.hit.hit_block_pos;
+    let target_auth_air = target_authoritative.is_some_and(|block| block.0 == 0);
+    let target_pred_solid = target_predicted.is_some_and(|block| block.0 != 0);
+    if target_pred_solid
+        && target_auth_air
+        && !prediction_mismatch_is_explained(target_pos, target_predicted, target_authoritative)
     {
-        return None;
+        return Some(match intent.identity.kind {
+            TerrainInteractionKindV2::Break => TerrainInteractionRejectReasonV2::TargetNotSolid,
+            TerrainInteractionKindV2::Place => TerrainInteractionRejectReasonV2::SupportNotSolid,
+        });
     }
 
-    let predicted = camera.predicted_block_id_at(authoritative_hit.block_pos);
-    let authoritative = camera.authoritative_block_id_at(authoritative_hit.block_pos);
-    if prediction_mismatch_is_explained(authoritative_hit.block_pos, predicted, authoritative) {
-        return None;
+    if let Some(place) = intent.place.as_ref() {
+        let place_auth_occupied = place_authoritative.is_some_and(|block| block.0 != 0);
+        let place_pred_empty = place_predicted.is_some_and(|block| block.0 == 0);
+        if place_pred_empty
+            && place_auth_occupied
+            && !prediction_mismatch_is_explained(
+                place.placement_pos,
+                place_predicted,
+                place_authoritative,
+            )
+        {
+            return Some(TerrainInteractionRejectReasonV2::PlacementNotEmpty);
+        }
     }
 
-    if intent
-        .place
-        .as_ref()
-        .is_some_and(|place| authoritative_hit.block_pos == place.placement_pos)
-    {
-        Some(TerrainInteractionRejectReasonV2::PlacementNotEmpty)
-    } else {
-        Some(TerrainInteractionRejectReasonV2::Occluded)
-    }
+    None
 }
 
 fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[f32; 3]> {
@@ -517,14 +511,6 @@ fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[
         .into_iter()
         .find(|view| view.is_local)
         .map(|view| [view.world_pos_m.0, view.world_pos_m.1, view.world_pos_m.2])
-}
-
-fn has_unexplained_prediction_mismatch(
-    pos: (i32, i32, i32),
-    predicted: Option<BlockRuntimeId>,
-    authoritative: Option<BlockRuntimeId>,
-) -> bool {
-    predicted != authoritative && !prediction_mismatch_is_explained(pos, predicted, authoritative)
 }
 
 fn prediction_mismatch_is_explained(
@@ -1388,6 +1374,9 @@ mod tests {
     fn rapid_break_spam_stale_predicted_only_target_does_not_flash_prediction() {
         ensure_action_kinds();
 
+        // A predicted-only solid with no remembered pending edit is not a
+        // valid dependency. Suppress it locally so a stale visual target does
+        // not flash another prediction before the server can reject it.
         let mut services = NoopServices;
         let mut input = TestInput {
             left: true,
@@ -1457,6 +1446,11 @@ mod tests {
     fn valid_rapid_break_chain_remains_predicted() {
         ensure_action_kinds();
 
+        // The second break targets the client-presented stream after the first
+        // local prediction. The authoritative cursor still sees the first
+        // block, but authoritative lag alone must not suppress the dependent
+        // prediction; server authority converges through ActionResult plus
+        // ordered WorldDelta terrain_rev updates.
         let mut services = NoopServices;
         let mut input = TestInput {
             left: true,
@@ -1526,9 +1520,97 @@ mod tests {
     }
 
     #[test]
+    fn break_then_place_into_just_predicted_empty_cell_submits() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input = TestInput {
+            left: true,
+            right: false,
+        };
+        let mut break_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut break_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(19, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        let mut input = TestInput {
+            left: false,
+            right: true,
+        };
+        let mut place_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (3, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 2.5,
+        })
+        .with_predicted_block((2, 1, 0), 0)
+        .with_authoritative_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1)
+        .with_authoritative_hit(Some(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        }));
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut place_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(20, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
+        );
+        assert_eq!(
+            interaction.requests[1].action_kind_id,
+            place_action_kind_id()
+        );
+        let payload = decode_place_payload_v2(&interaction.requests[1].payload)
+            .expect("decode dependent place");
+        assert_eq!(payload.hit.hit_block_pos, (3, 1, 0));
+        let place = payload.place.expect("place intent");
+        assert_eq!(place.support_block_pos, (3, 1, 0));
+        assert_eq!(place.placement_pos, (2, 1, 0));
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit {
+                pos: (2, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+    }
+
+    #[test]
     fn valid_rapid_place_chain_remains_predicted() {
         ensure_action_kinds();
 
+        // Rapid RMB can use a just-predicted placed block as the next support.
+        // Client prediction is allowed to target presented/pending state; the
+        // server still validates the submitted intent on authoritative state.
         let mut services = NoopServices;
         let mut input = TestInput {
             left: false,
@@ -1601,6 +1683,30 @@ mod tests {
                 pos: (0, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
+        );
+    }
+
+    #[test]
+    fn authoritative_block_id_mismatch_alone_does_not_reject_presented_valid_break() {
+        ensure_action_kinds();
+
+        let intent = server_break_intent((2, 1, 0), 1.5, 42, 1);
+        let camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_predicted_block((2, 1, 0), 3)
+        .with_authoritative_block((2, 1, 0), 1);
+        let mut players = NoopPlayers;
+
+        let client_validation =
+            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+
+        assert!(
+            client_validation.is_ok(),
+            "#79-style predicted-vs-authoritative block-id mismatch alone must not reject a \
+             presented-valid local prediction: {client_validation:?}"
         );
     }
 
