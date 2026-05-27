@@ -52,7 +52,20 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
         .input
         .drain_mouse_button_presses(OWNER, MAX_MOUSE_PRESSES_PER_TICK);
 
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        owner = OWNER,
+        press_count = presses.len(),
+        presses = ?presses,
+        "drained block interaction mouse presses",
+    );
+
     for press in presses {
+        tracing::debug!(
+            target: "freven_vanilla_essentials::client::block_interaction",
+            action = ?press.button,
+            "handling block interaction mouse press",
+        );
         handle_mouse_press_action(tick, press.button);
     }
 }
@@ -756,11 +769,21 @@ fn local_pending_prediction_summary() -> String {
 }
 
 fn log_local_skip(tick: &mut ClientTickApi<'_>, action: ClientMouseButton, reason: &str) {
+    let pending_summary = local_pending_prediction_summary();
+    let pending_count = local_pending_prediction_count();
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        action = action_name(action),
+        reason,
+        pending_terrain_predictions = %pending_summary,
+        pending_terrain_prediction_count = pending_count,
+        "block interaction not submitted",
+    );
     let message = format!(
         "{} interaction not submitted: {reason} pending_terrain_predictions={} pending_terrain_prediction_count={}",
         action_name(action),
-        local_pending_prediction_summary(),
-        local_pending_prediction_count(),
+        pending_summary,
+        pending_count,
     );
     tick.log(LogLevel::Debug, message.clone());
     emit_log(LogLevel::Debug, message);
@@ -814,6 +837,25 @@ fn log_local_prediction_accepted(
     intent: &TerrainInteractionIntentV2,
     admission: LocalPredictionAdmission,
 ) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        action,
+        action_seq,
+        at_input_seq = intent.identity.input_seq,
+        target_pos = ?intent.hit.hit_block_pos,
+        place_pos = ?intent.place.as_ref().map(|place| place.placement_pos),
+        hit_face = ?intent.hit.hit_face,
+        ray_origin_m = ?intent.ray.ray_origin_m,
+        ray_dir = ?intent.ray.ray_dir,
+        predicted_target_block = ?admission.target_predicted_block,
+        authoritative_target_block = ?admission.target_authoritative_block,
+        predicted_place_block = ?admission.place_predicted_block,
+        authoritative_place_block = ?admission.place_authoritative_block,
+        pending_terrain_predictions = %local_pending_prediction_summary(),
+        pending_terrain_prediction_count = local_pending_prediction_count(),
+        "block interaction local prediction accepted",
+    );
+
     let message = format!(
         "{action} local prediction accepted: action_seq={action_seq} at_input_seq={} \
          target_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} \
