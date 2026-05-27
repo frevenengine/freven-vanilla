@@ -27,6 +27,7 @@ use freven_world_api::{
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
+const MAX_MOUSE_PRESSES_PER_TICK: usize = 8;
 thread_local! {
     static LOCAL_TERRAIN_PREDICTIONS: RefCell<LocalTerrainPredictionState> =
         const { RefCell::new(LocalTerrainPredictionState {
@@ -43,28 +44,20 @@ pub fn start_client(api: &mut ClientApi<'_>) {
 pub fn tick_client(tick: &mut ClientTickApi<'_>) {
     prune_local_terrain_predictions(tick.client.camera);
 
-    // Consume one click per tick (owner-guarded).
-    let action = {
-        let api = &mut tick.client;
-        if api
-            .input
-            .consume_mouse_button_press(ClientMouseButton::Left, OWNER)
-        {
-            Some(ClientMouseButton::Left)
-        } else if api
-            .input
-            .consume_mouse_button_press(ClientMouseButton::Right, OWNER)
-        {
-            Some(ClientMouseButton::Right)
-        } else {
-            None
-        }
-    };
+    // Drain a bounded ordered click batch. This preserves repeated RMB clicks
+    // and LMB/RMB ordering captured by the engine input queue while avoiding
+    // unbounded action spam in one client tick.
+    let presses = tick
+        .client
+        .input
+        .drain_mouse_button_presses(OWNER, MAX_MOUSE_PRESSES_PER_TICK);
 
-    let Some(action) = action else {
-        return;
-    };
+    for press in presses {
+        handle_mouse_press_action(tick, press.button);
+    }
+}
 
+fn handle_mouse_press_action(tick: &mut ClientTickApi<'_>, action: ClientMouseButton) {
     // We only allow submitting actions when the client has an active stream.
     let Some((level_id, stream_epoch)) = tick.client.interaction.active_stream() else {
         log_local_skip(tick, action, "no active world stream");
@@ -802,6 +795,7 @@ mod tests {
         ActionTarget, decode_break_payload_v2, decode_place_payload_v2, encode_break_payload_v1,
         try_encode_break_payload_v2, try_encode_place_payload_v2,
     };
+    use freven_avatar_sdk_types::ClientMouseButtonPress;
     use freven_avatar_sdk_types::{
         ClientInputProvider, ClientKeyCode, ClientPlayerProvider, ClientPlayerView,
     };
@@ -872,6 +866,91 @@ mod tests {
                 ClientMouseButton::Right => std::mem::take(&mut self.right),
                 _ => false,
             }
+        }
+
+        fn drain_mouse_button_presses(
+            &mut self,
+            _owner: &str,
+            limit: usize,
+        ) -> Vec<ClientMouseButtonPress> {
+            let mut presses = Vec::new();
+            if limit == 0 {
+                return presses;
+            }
+
+            if self.left {
+                self.left = false;
+                presses.push(ClientMouseButtonPress::new(ClientMouseButton::Left));
+            }
+
+            if self.right && presses.len() < limit {
+                self.right = false;
+                presses.push(ClientMouseButtonPress::new(ClientMouseButton::Right));
+            }
+
+            presses
+        }
+
+        fn consume_key_press(&mut self, _key: ClientKeyCode, _owner: &str) -> bool {
+            false
+        }
+    }
+
+    struct OrderedTestInput {
+        presses: Vec<ClientMouseButton>,
+    }
+
+    impl OrderedTestInput {
+        fn new(presses: impl Into<Vec<ClientMouseButton>>) -> Self {
+            Self {
+                presses: presses.into(),
+            }
+        }
+    }
+
+    impl ClientInputProvider for OrderedTestInput {
+        fn mouse_button_down(&self, _button: ClientMouseButton) -> bool {
+            false
+        }
+
+        fn mouse_button_just_pressed(&self, _button: ClientMouseButton) -> bool {
+            false
+        }
+
+        fn key_down(&self, _key: ClientKeyCode) -> bool {
+            false
+        }
+
+        fn key_just_pressed(&self, _key: ClientKeyCode) -> bool {
+            false
+        }
+
+        fn bind_mouse_button(&mut self, _button: ClientMouseButton, _owner: &str) -> bool {
+            true
+        }
+
+        fn bind_key(&mut self, _key: ClientKeyCode, _owner: &str) -> bool {
+            true
+        }
+
+        fn consume_mouse_button_press(&mut self, button: ClientMouseButton, _owner: &str) -> bool {
+            let Some(index) = self.presses.iter().position(|queued| *queued == button) else {
+                return false;
+            };
+            self.presses.remove(index);
+            true
+        }
+
+        fn drain_mouse_button_presses(
+            &mut self,
+            _owner: &str,
+            limit: usize,
+        ) -> Vec<ClientMouseButtonPress> {
+            let take = limit.min(self.presses.len());
+            self.presses
+                .drain(..take)
+                .map(ClientMouseButtonPress::new)
+                .collect()
         }
 
         fn consume_key_press(&mut self, _key: ClientKeyCode, _owner: &str) -> bool {
@@ -1516,6 +1595,152 @@ mod tests {
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit::clear_block((3, 1, 0))]
+        );
+    }
+
+    #[test]
+    fn ordered_same_tick_left_then_right_submits_both_actions() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input =
+            OrderedTestInput::new(vec![ClientMouseButton::Left, ClientMouseButton::Right]);
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(21, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            break_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[1].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
+        );
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit {
+                pos: (1, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+    }
+
+    #[test]
+    fn ordered_same_tick_double_right_submits_two_place_actions() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input =
+            OrderedTestInput::new(vec![ClientMouseButton::Right, ClientMouseButton::Right]);
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((0, 1, 0), 0)
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(22, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[1].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit {
+                pos: (1, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit {
+                pos: (1, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+    }
+
+    #[test]
+    fn ordered_same_tick_right_then_left_preserves_order() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input =
+            OrderedTestInput::new(vec![ClientMouseButton::Right, ClientMouseButton::Left]);
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(23, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            place_action_kind_id()
+        );
+        assert_eq!(
+            interaction.requests[1].action_kind_id,
+            break_action_kind_id()
         );
     }
 
