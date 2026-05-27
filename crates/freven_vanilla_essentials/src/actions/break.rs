@@ -49,6 +49,21 @@ impl ActionHandler for BreakActionHandler {
         if let TerrainInteractionValidationV2::Rejected(reason) = validation {
             let target_pos = intent.hit.hit_block_pos;
             let target_block = block_authority.block(target_pos.0, target_pos.1, target_pos.2);
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::break",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                reason = ?reason,
+                target_pos = ?target_pos,
+                hit_face = ?intent.hit.hit_face,
+                ray_origin_m = ?intent.ray.ray_origin_m,
+                ray_dir = ?intent.ray.ray_dir,
+                authoritative_target_block = ?target_block,
+                server_interaction_origin_m = ?authoritative_origin_m,
+                "terrain interaction rejected",
+            );
             emit_log(
                 LogLevel::Debug,
                 format!(
@@ -75,12 +90,61 @@ impl ActionHandler for BreakActionHandler {
 
         let target_pos = intent.hit.hit_block_pos;
         let Some(cur) = block_authority.block(target_pos.0, target_pos.1, target_pos.2) else {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::break",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                target_pos = ?target_pos,
+                "break action rejected: target block missing after validation",
+            );
+            emit_log(
+                LogLevel::Debug,
+                format!(
+                    "break action rejected: target block missing after validation player_id={}                      action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?}",
+                    ctx.player_id,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
+                ),
+            );
             return ActionOutcome::Rejected;
         };
 
-        match block_authority.try_apply(&BlockMutation::clear_block(target_pos, Some(cur))) {
+        let mutation_result =
+            block_authority.try_apply(&BlockMutation::clear_block(target_pos, Some(cur)));
+
+        match mutation_result {
             BlockMutationResult::Applied { .. } => ActionOutcome::Applied,
-            _ => ActionOutcome::Rejected,
+            result => {
+                tracing::debug!(
+                    target: "freven_vanilla_essentials::actions::break",
+                    player_id = ctx.player_id,
+                    action_seq = cmd.seq,
+                    intent_action_seq = ?intent.identity.action_seq,
+                    at_input_seq = cmd.at_input_seq,
+                    target_pos = ?target_pos,
+                    expected_old = ?cur,
+                    mutation_result = ?result,
+                    "break action rejected: mutation apply failed",
+                );
+                emit_log(
+                    LogLevel::Debug,
+                    format!(
+                        "break action rejected: mutation apply failed player_id={} action_seq={}                          intent_action_seq={:?} at_input_seq={} target_pos={:?} expected_old={:?}                          mutation_result={:?}",
+                        ctx.player_id,
+                        cmd.seq,
+                        intent.identity.action_seq,
+                        cmd.at_input_seq,
+                        target_pos,
+                        cur,
+                        result,
+                    ),
+                );
+                ActionOutcome::Rejected
+            }
         }
     }
 }

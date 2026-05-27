@@ -57,6 +57,23 @@ impl ActionHandler for PlaceActionHandler {
             let place_pos = intent.place.as_ref().map(|place| place.placement_pos);
             let target_block = block_authority.block(target_pos.0, target_pos.1, target_pos.2);
             let place_block = place_pos.and_then(|pos| block_authority.block(pos.0, pos.1, pos.2));
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::place",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                reason = ?reason,
+                target_pos = ?target_pos,
+                place_pos = ?place_pos,
+                hit_face = ?intent.hit.hit_face,
+                ray_origin_m = ?intent.ray.ray_origin_m,
+                ray_dir = ?intent.ray.ray_dir,
+                authoritative_target_block = ?target_block,
+                authoritative_place_block = ?place_block,
+                server_interaction_origin_m = ?authoritative_origin_m,
+                "terrain interaction rejected",
+            );
             emit_log(
                 LogLevel::Debug,
                 format!(
@@ -90,16 +107,68 @@ impl ActionHandler for PlaceActionHandler {
 
         let Some(target_cur) = block_authority.block(target_pos.0, target_pos.1, target_pos.2)
         else {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::place",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                target_pos = ?target_pos,
+                block_id = ?place.block_id,
+                "place action rejected: placement block missing after validation",
+            );
+            emit_log(
+                LogLevel::Debug,
+                format!(
+                    "place action rejected: placement block missing after validation player_id={}                      action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?} block_id={:?}",
+                    ctx.player_id,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
+                    place.block_id,
+                ),
+            );
             return ActionOutcome::Rejected;
         };
 
-        match block_authority.try_apply(&BlockMutation::SetBlock {
+        let mutation_result = block_authority.try_apply(&BlockMutation::SetBlock {
             pos: target_pos,
             block_id: place.block_id,
             expected_old: Some(target_cur),
-        }) {
+        });
+
+        match mutation_result {
             BlockMutationResult::Applied { .. } => ActionOutcome::Applied,
-            _ => ActionOutcome::Rejected,
+            result => {
+                tracing::debug!(
+                    target: "freven_vanilla_essentials::actions::place",
+                    player_id = ctx.player_id,
+                    action_seq = cmd.seq,
+                    intent_action_seq = ?intent.identity.action_seq,
+                    at_input_seq = cmd.at_input_seq,
+                    target_pos = ?target_pos,
+                    block_id = ?place.block_id,
+                    expected_old = ?target_cur,
+                    mutation_result = ?result,
+                    "place action rejected: mutation apply failed",
+                );
+                emit_log(
+                    LogLevel::Debug,
+                    format!(
+                        "place action rejected: mutation apply failed player_id={} action_seq={}                          intent_action_seq={:?} at_input_seq={} target_pos={:?} block_id={:?}                          expected_old={:?} mutation_result={:?}",
+                        ctx.player_id,
+                        cmd.seq,
+                        intent.identity.action_seq,
+                        cmd.at_input_seq,
+                        target_pos,
+                        place.block_id,
+                        target_cur,
+                        result,
+                    ),
+                );
+                ActionOutcome::Rejected
+            }
         }
     }
 }
