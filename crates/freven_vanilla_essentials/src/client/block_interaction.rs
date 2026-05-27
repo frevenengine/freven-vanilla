@@ -814,32 +814,31 @@ fn log_local_prediction_accepted(
     intent: &TerrainInteractionIntentV2,
     admission: LocalPredictionAdmission,
 ) {
-    tick.log(
-        LogLevel::Debug,
-        format!(
-            "{action} local prediction accepted: action_seq={action_seq} at_input_seq={} \
-             target_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} \
-             client_interaction_origin_m={:?} predicted_target_block={:?} \
-             authoritative_target_block={:?} predicted_place_block={:?} \
-             authoritative_place_block={:?} prediction_tx={:?} depends_on={:?} \
-             pending_terrain_predictions={} pending_terrain_prediction_count={}",
-            intent.identity.input_seq,
-            intent.hit.hit_block_pos,
-            intent.place.as_ref().map(|place| place.placement_pos),
-            intent.hit.hit_face,
-            intent.ray.ray_origin_m,
-            intent.ray.ray_dir,
-            admission.interaction_origin_m,
-            admission.target_predicted_block,
-            admission.target_authoritative_block,
-            admission.place_predicted_block,
-            admission.place_authoritative_block,
-            intent.identity.prediction_tx,
-            intent.identity.depends_on,
-            local_pending_prediction_summary(),
-            local_pending_prediction_count(),
-        ),
+    let message = format!(
+        "{action} local prediction accepted: action_seq={action_seq} at_input_seq={} \
+         target_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} \
+         client_interaction_origin_m={:?} predicted_target_block={:?} \
+         authoritative_target_block={:?} predicted_place_block={:?} \
+         authoritative_place_block={:?} prediction_tx={:?} depends_on={:?} \
+         pending_terrain_predictions={} pending_terrain_prediction_count={}",
+        intent.identity.input_seq,
+        intent.hit.hit_block_pos,
+        intent.place.as_ref().map(|place| place.placement_pos),
+        intent.hit.hit_face,
+        intent.ray.ray_origin_m,
+        intent.ray.ray_dir,
+        admission.interaction_origin_m,
+        admission.target_predicted_block,
+        admission.target_authoritative_block,
+        admission.place_predicted_block,
+        admission.place_authoritative_block,
+        intent.identity.prediction_tx,
+        intent.identity.depends_on,
+        local_pending_prediction_summary(),
+        local_pending_prediction_count(),
     );
+    tick.log(LogLevel::Debug, message.clone());
+    emit_log(LogLevel::Debug, message);
 }
 
 fn log_submit_failure(tick: &mut ClientTickApi<'_>, action: &str, err: ClientActionSubmitError) {
