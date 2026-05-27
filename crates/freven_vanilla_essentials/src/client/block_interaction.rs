@@ -1,14 +1,19 @@
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use crate::action_payloads::{try_encode_break_payload_v2, try_encode_place_payload_v2};
+use crate::actions::targeting::{MAX_ACTION_REACH_M, humanoid_interaction_origin_m};
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
 use freven_avatar_api::{ClientApi, ClientTickApi};
-use freven_avatar_sdk_types::ClientMouseButton;
+use freven_avatar_sdk_types::{ClientMouseButton, ClientPlayerProvider, ClientPlayerView};
 use freven_block_api::{
     ClientBlockFace, ClientCameraHitProvider, ClientCameraRay, ClientCursorHit,
-    ClientPredictedEdit, TerrainInteractionHitV2, TerrainInteractionIdentityV2,
-    TerrainInteractionIntentV2, TerrainInteractionKindV2, TerrainInteractionRayV2,
-    TerrainPlaceIntentV2, TerrainPredictionTransactionIdV2,
+    ClientPredictedEdit, TerrainInteractionCellV2, TerrainInteractionHitV2,
+    TerrainInteractionIdentityV2, TerrainInteractionIntentV2, TerrainInteractionKindV2,
+    TerrainInteractionRayV2, TerrainInteractionRejectReasonV2, TerrainInteractionRulesV2,
+    TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
+    TerrainInteractionWorldViewV2, TerrainPlaceIntentV2, TerrainPredictionTransactionIdV2,
+    validate_terrain_interaction_v2,
 };
 use freven_block_guest::{
     BlockQueryRequest, BlockQueryResponse, BlockServiceRequest, BlockServiceResponse,
@@ -22,12 +27,22 @@ use freven_world_api::{
 
 const OWNER: &str = "freven.vanilla.essentials:block_interaction";
 const MAX_RAYCAST_DISTANCE_M: f32 = 5.0;
+thread_local! {
+    static LOCAL_TERRAIN_PREDICTIONS: RefCell<LocalTerrainPredictionState> =
+        const { RefCell::new(LocalTerrainPredictionState {
+        pending: Vec::new(),
+    }) };
+}
+
 pub fn start_client(api: &mut ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Left, OWNER);
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
+    clear_local_terrain_predictions();
 }
 
 pub fn tick_client(tick: &mut ClientTickApi<'_>) {
+    prune_local_terrain_predictions(tick.client.camera);
+
     // Consume one click per tick (owner-guarded).
     let action = {
         let api = &mut tick.client;
@@ -59,20 +74,34 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
     let at_input_seq = tick.client.interaction.next_input_seq();
     let client_view_tick = tick.tick;
 
-    let submit_failure = match action {
+    match action {
         ClientMouseButton::Left => {
             let Some(target) = select_presented_break_target(tick.client.camera) else {
                 log_local_skip(tick, action, missing_target_reason(action));
                 return;
             };
 
-            let payload = match try_encode_break_payload_v2(&build_break_intent(
+            let intent = build_break_intent(
                 level_id,
                 stream_epoch,
                 at_input_seq,
                 client_view_tick,
                 target,
-            )) {
+            );
+            let admission = match validate_local_prediction_admission(
+                tick.client.camera,
+                tick.client.players,
+                None,
+                &intent,
+            ) {
+                Ok(admission) => admission,
+                Err(reason) => {
+                    log_local_validation_reject(tick, "break", &intent, reason);
+                    return;
+                }
+            };
+
+            let payload = match try_encode_break_payload_v2(&intent) {
                 Ok(payload) => payload,
                 Err(err) => {
                     log_encode_failure(tick, action, &err);
@@ -80,19 +109,26 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 }
             };
 
+            let predicted = vec![ClientPredictedEdit::clear_block(target.hit.block_pos)];
             let req = ClientActionRequest {
                 action_kind_id: break_action_kind_id(),
                 payload: Arc::from(payload),
                 at_input_seq,
-                predicted: vec![ClientPredictedEdit::clear_block(target.hit.block_pos)],
+                predicted: predicted.clone(),
             };
 
             // Engine assigns action_seq and owns retransmit/prediction.
-            tick.client
-                .interaction
-                .submit_action(req)
-                .err()
-                .map(|err| ("break", err))
+            match tick.client.interaction.submit_action(req) {
+                Ok(action_seq) => {
+                    remember_local_terrain_predictions(
+                        action_seq,
+                        intent.identity.prediction_tx,
+                        &predicted,
+                    );
+                    log_local_prediction_accepted(tick, "break", action_seq, &intent, admission);
+                }
+                Err(err) => log_submit_failure(tick, "break", err),
+            }
         }
 
         ClientMouseButton::Right => {
@@ -110,14 +146,28 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 );
                 return;
             };
-            let payload = match try_encode_place_payload_v2(&build_place_intent(
+            let intent = build_place_intent(
                 level_id,
                 stream_epoch,
                 at_input_seq,
                 client_view_tick,
                 target,
                 place_block_id,
-            )) {
+            );
+            let admission = match validate_local_prediction_admission(
+                tick.client.camera,
+                tick.client.players,
+                Some(place_block_id),
+                &intent,
+            ) {
+                Ok(admission) => admission,
+                Err(reason) => {
+                    log_local_validation_reject(tick, "place", &intent, reason);
+                    return;
+                }
+            };
+
+            let payload = match try_encode_place_payload_v2(&intent) {
                 Ok(payload) => payload,
                 Err(err) => {
                     log_encode_failure(tick, action, &err);
@@ -125,29 +175,32 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
                 }
             };
 
+            let predicted = vec![ClientPredictedEdit {
+                pos: target.place_pos,
+                predicted_block_id: place_block_id,
+            }];
             let req = ClientActionRequest {
                 action_kind_id: place_action_kind_id(),
                 payload: Arc::from(payload),
                 at_input_seq,
-                predicted: vec![ClientPredictedEdit {
-                    pos: target.place_pos,
-                    predicted_block_id: place_block_id,
-                }],
+                predicted: predicted.clone(),
             };
 
-            tick.client
-                .interaction
-                .submit_action(req)
-                .err()
-                .map(|err| ("place", err))
+            match tick.client.interaction.submit_action(req) {
+                Ok(action_seq) => {
+                    remember_local_terrain_predictions(
+                        action_seq,
+                        intent.identity.prediction_tx,
+                        &predicted,
+                    );
+                    log_local_prediction_accepted(tick, "place", action_seq, &intent, admission);
+                }
+                Err(err) => log_submit_failure(tick, "place", err),
+            }
         }
 
-        ClientMouseButton::Middle => None,
-        _ => None,
-    };
-
-    if let Some((action, err)) = submit_failure {
-        log_submit_failure(tick, action, err);
+        ClientMouseButton::Middle => {}
+        _ => {}
     }
 }
 
@@ -170,6 +223,60 @@ struct PlaceInteractionTarget {
     hit: ClientCursorHit,
     camera_ray: ClientCameraRay,
     place_pos: (i32, i32, i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingTerrainPrediction {
+    action_seq: u32,
+    prediction_tx: TerrainPredictionTransactionIdV2,
+    pos: (i32, i32, i32),
+    predicted_block_id: BlockRuntimeId,
+}
+
+#[derive(Debug, Default)]
+struct LocalTerrainPredictionState {
+    pending: Vec<PendingTerrainPrediction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct LocalPredictionAdmission {
+    interaction_origin_m: [f32; 3],
+    target_predicted_block: Option<BlockRuntimeId>,
+    target_authoritative_block: Option<BlockRuntimeId>,
+    place_predicted_block: Option<BlockRuntimeId>,
+    place_authoritative_block: Option<BlockRuntimeId>,
+}
+
+struct ClientPredictedTerrainWorld<'a> {
+    camera: &'a dyn ClientCameraHitProvider,
+}
+
+impl TerrainInteractionWorldViewV2 for ClientPredictedTerrainWorld<'_> {
+    fn cell_at(&self, pos: (i32, i32, i32)) -> TerrainInteractionCellV2 {
+        self.camera
+            .predicted_block_id_at(pos)
+            .map(TerrainInteractionCellV2::Loaded)
+            .unwrap_or(TerrainInteractionCellV2::NotLoaded)
+    }
+}
+
+struct ClientTerrainRules {
+    allowed_place_block_id: Option<BlockRuntimeId>,
+}
+
+impl TerrainInteractionRulesV2 for ClientTerrainRules {
+    fn is_solid(&self, block_id: BlockRuntimeId) -> bool {
+        block_id.0 != 0
+    }
+
+    fn is_supporting(&self, block_id: BlockRuntimeId, _face: ClientBlockFace) -> bool {
+        self.is_solid(block_id)
+    }
+
+    fn can_place_block(&self, block_id: BlockRuntimeId) -> bool {
+        self.allowed_place_block_id
+            .is_some_and(|allowed| block_id == allowed)
+    }
 }
 
 fn select_presented_break_target(
@@ -302,6 +409,205 @@ fn terrain_hit(hit: ClientCursorHit) -> TerrainInteractionHitV2 {
     }
 }
 
+fn validate_local_prediction_admission(
+    camera: &dyn ClientCameraHitProvider,
+    players: &mut dyn ClientPlayerProvider,
+    allowed_place_block_id: Option<BlockRuntimeId>,
+    intent: &TerrainInteractionIntentV2,
+) -> Result<LocalPredictionAdmission, TerrainInteractionRejectReasonV2> {
+    let Some(player_center_pos_m) = local_player_center_pos_m(players) else {
+        return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
+    };
+    let interaction_origin_m = humanoid_interaction_origin_m(player_center_pos_m);
+    let mut policy =
+        TerrainInteractionValidationPolicyV2::new(interaction_origin_m, MAX_ACTION_REACH_M);
+    policy.active_level_id = Some(intent.identity.level_id);
+    policy.active_stream_epoch = Some(intent.identity.stream_epoch);
+    policy.min_input_seq = Some(intent.identity.input_seq);
+    policy.max_input_seq = Some(intent.identity.input_seq);
+
+    let world = ClientPredictedTerrainWorld { camera };
+    let rules = ClientTerrainRules {
+        allowed_place_block_id,
+    };
+    match validate_terrain_interaction_v2(&world, &rules, &policy, intent) {
+        TerrainInteractionValidationV2::Accepted(_) => {}
+        TerrainInteractionValidationV2::Rejected(reason) => return Err(reason),
+    }
+
+    let target_pos = intent.hit.hit_block_pos;
+    let target_predicted_block = camera.predicted_block_id_at(target_pos);
+    let target_authoritative_block = camera.authoritative_block_id_at(target_pos);
+    let place_pos = intent.place.as_ref().map(|place| place.placement_pos);
+    let place_predicted_block = place_pos.and_then(|pos| camera.predicted_block_id_at(pos));
+    let place_authoritative_block = place_pos.and_then(|pos| camera.authoritative_block_id_at(pos));
+
+    if has_unexplained_prediction_mismatch(
+        target_pos,
+        target_predicted_block,
+        target_authoritative_block,
+    ) {
+        return Err(TerrainInteractionRejectReasonV2::StateMismatch);
+    }
+    if let Some(pos) = place_pos
+        && has_unexplained_prediction_mismatch(
+            pos,
+            place_predicted_block,
+            place_authoritative_block,
+        )
+    {
+        return Err(TerrainInteractionRejectReasonV2::StateMismatch);
+    }
+
+    if let Some(reason) = authoritative_cursor_conflict(camera, intent) {
+        return Err(reason);
+    }
+
+    Ok(LocalPredictionAdmission {
+        interaction_origin_m,
+        target_predicted_block,
+        target_authoritative_block,
+        place_predicted_block,
+        place_authoritative_block,
+    })
+}
+
+fn authoritative_cursor_conflict(
+    camera: &dyn ClientCameraHitProvider,
+    intent: &TerrainInteractionIntentV2,
+) -> Option<TerrainInteractionRejectReasonV2> {
+    let authoritative_hit = camera.authoritative_cursor_hit(MAX_RAYCAST_DISTANCE_M)?;
+    let expected_hit_pos = intent.hit.hit_block_pos;
+    if authoritative_hit.block_pos == expected_hit_pos {
+        return None;
+    }
+    let expected_predicted = camera.predicted_block_id_at(expected_hit_pos);
+    let expected_authoritative = camera.authoritative_block_id_at(expected_hit_pos);
+    if expected_predicted != expected_authoritative
+        && prediction_mismatch_is_explained(
+            expected_hit_pos,
+            expected_predicted,
+            expected_authoritative,
+        )
+    {
+        return None;
+    }
+
+    let predicted = camera.predicted_block_id_at(authoritative_hit.block_pos);
+    let authoritative = camera.authoritative_block_id_at(authoritative_hit.block_pos);
+    if prediction_mismatch_is_explained(authoritative_hit.block_pos, predicted, authoritative) {
+        return None;
+    }
+
+    if intent
+        .place
+        .as_ref()
+        .is_some_and(|place| authoritative_hit.block_pos == place.placement_pos)
+    {
+        Some(TerrainInteractionRejectReasonV2::PlacementNotEmpty)
+    } else {
+        Some(TerrainInteractionRejectReasonV2::Occluded)
+    }
+}
+
+fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[f32; 3]> {
+    let mut views = Vec::<ClientPlayerView>::new();
+    players.list_players(&mut views);
+    views
+        .into_iter()
+        .find(|view| view.is_local)
+        .map(|view| [view.world_pos_m.0, view.world_pos_m.1, view.world_pos_m.2])
+}
+
+fn has_unexplained_prediction_mismatch(
+    pos: (i32, i32, i32),
+    predicted: Option<BlockRuntimeId>,
+    authoritative: Option<BlockRuntimeId>,
+) -> bool {
+    predicted != authoritative && !prediction_mismatch_is_explained(pos, predicted, authoritative)
+}
+
+fn prediction_mismatch_is_explained(
+    pos: (i32, i32, i32),
+    predicted: Option<BlockRuntimeId>,
+    authoritative: Option<BlockRuntimeId>,
+) -> bool {
+    if predicted == authoritative {
+        return true;
+    }
+    let Some(predicted_block_id) = predicted else {
+        return false;
+    };
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
+        state
+            .borrow()
+            .pending
+            .iter()
+            .any(|pending| pending.pos == pos && pending.predicted_block_id == predicted_block_id)
+    })
+}
+
+fn remember_local_terrain_predictions(
+    action_seq: u32,
+    prediction_tx: TerrainPredictionTransactionIdV2,
+    predicted: &[ClientPredictedEdit],
+) {
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
+        let mut state = state.borrow_mut();
+        for edit in predicted {
+            state.pending.push(PendingTerrainPrediction {
+                action_seq,
+                prediction_tx,
+                pos: edit.pos,
+                predicted_block_id: edit.predicted_block_id,
+            });
+        }
+    });
+}
+
+fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider) {
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
+        state.borrow_mut().pending.retain(|pending| {
+            let predicted = camera.predicted_block_id_at(pending.pos);
+            let authoritative = camera.authoritative_block_id_at(pending.pos);
+            predicted != authoritative
+        });
+    });
+}
+
+fn clear_local_terrain_predictions() {
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| state.borrow_mut().pending.clear());
+}
+
+fn local_pending_prediction_count() -> usize {
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| state.borrow().pending.len())
+}
+
+fn local_pending_prediction_summary() -> String {
+    LOCAL_TERRAIN_PREDICTIONS.with(|state| {
+        let state = state.borrow();
+        if state.pending.is_empty() {
+            return "[]".to_string();
+        }
+
+        let mut summary = String::from("[");
+        for (index, pending) in state.pending.iter().take(4).enumerate() {
+            if index > 0 {
+                summary.push_str(", ");
+            }
+            summary.push_str(&format!(
+                "{{action_seq={}, tx={:?}, pos={:?}, predicted={:?}}}",
+                pending.action_seq, pending.prediction_tx, pending.pos, pending.predicted_block_id
+            ));
+        }
+        if state.pending.len() > 4 {
+            summary.push_str(", ...");
+        }
+        summary.push(']');
+        summary
+    })
+}
+
 fn log_local_skip(tick: &mut ClientTickApi<'_>, action: ClientMouseButton, reason: &str) {
     tick.log(
         LogLevel::Debug,
@@ -322,6 +628,67 @@ fn log_encode_failure(
         format!(
             "{} interaction not submitted: payload encode failed: {err}",
             action_name(action)
+        ),
+    );
+}
+
+fn log_local_validation_reject(
+    tick: &mut ClientTickApi<'_>,
+    action: &str,
+    intent: &TerrainInteractionIntentV2,
+    reason: TerrainInteractionRejectReasonV2,
+) {
+    tick.log(
+        LogLevel::Debug,
+        format!(
+            "{action} interaction not submitted: local v2 prediction validation rejected \
+             reason={reason:?} action_seq=missing-pre-submit at_input_seq={} target_pos={:?} \
+             place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} prediction_tx={:?} \
+             depends_on={:?} pending_terrain_predictions={}",
+            intent.identity.input_seq,
+            intent.hit.hit_block_pos,
+            intent.place.as_ref().map(|place| place.placement_pos),
+            intent.hit.hit_face,
+            intent.ray.ray_origin_m,
+            intent.ray.ray_dir,
+            intent.identity.prediction_tx,
+            intent.identity.depends_on,
+            local_pending_prediction_summary(),
+        ),
+    );
+}
+
+fn log_local_prediction_accepted(
+    tick: &mut ClientTickApi<'_>,
+    action: &str,
+    action_seq: u32,
+    intent: &TerrainInteractionIntentV2,
+    admission: LocalPredictionAdmission,
+) {
+    tick.log(
+        LogLevel::Debug,
+        format!(
+            "{action} local prediction accepted: action_seq={action_seq} at_input_seq={} \
+             target_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} ray_dir={:?} \
+             client_interaction_origin_m={:?} predicted_target_block={:?} \
+             authoritative_target_block={:?} predicted_place_block={:?} \
+             authoritative_place_block={:?} prediction_tx={:?} depends_on={:?} \
+             pending_terrain_predictions={} pending_terrain_prediction_count={}",
+            intent.identity.input_seq,
+            intent.hit.hit_block_pos,
+            intent.place.as_ref().map(|place| place.placement_pos),
+            intent.hit.hit_face,
+            intent.ray.ray_origin_m,
+            intent.ray.ray_dir,
+            admission.interaction_origin_m,
+            admission.target_predicted_block,
+            admission.target_authoritative_block,
+            admission.place_predicted_block,
+            admission.place_authoritative_block,
+            intent.identity.prediction_tx,
+            intent.identity.depends_on,
+            local_pending_prediction_summary(),
+            local_pending_prediction_count(),
         ),
     );
 }
@@ -529,23 +896,45 @@ mod tests {
     struct PresentedCamera {
         camera_ray: Option<ClientCameraRay>,
         predicted_hit: Option<ClientCursorHit>,
-        blocks: HashMap<(i32, i32, i32), BlockRuntimeId>,
+        authoritative_hit: Option<ClientCursorHit>,
+        predicted_blocks: HashMap<(i32, i32, i32), BlockRuntimeId>,
+        authoritative_blocks: HashMap<(i32, i32, i32), BlockRuntimeId>,
     }
 
     impl PresentedCamera {
         fn new(predicted_hit: ClientCursorHit) -> Self {
             Self {
                 camera_ray: Some(ClientCameraRay {
-                    origin: [0.0, 0.0, 0.0],
+                    origin: [0.5, 1.62, 0.5],
                     direction: [1.0, 0.0, 0.0],
                 }),
                 predicted_hit: Some(predicted_hit),
-                blocks: HashMap::new(),
+                authoritative_hit: Some(predicted_hit),
+                predicted_blocks: HashMap::new(),
+                authoritative_blocks: HashMap::new(),
             }
         }
 
         fn with_block(mut self, pos: (i32, i32, i32), block_id: u32) -> Self {
-            self.blocks.insert(pos, BlockRuntimeId(block_id));
+            self.predicted_blocks.insert(pos, BlockRuntimeId(block_id));
+            self.authoritative_blocks
+                .insert(pos, BlockRuntimeId(block_id));
+            self
+        }
+
+        fn with_predicted_block(mut self, pos: (i32, i32, i32), block_id: u32) -> Self {
+            self.predicted_blocks.insert(pos, BlockRuntimeId(block_id));
+            self
+        }
+
+        fn with_authoritative_block(mut self, pos: (i32, i32, i32), block_id: u32) -> Self {
+            self.authoritative_blocks
+                .insert(pos, BlockRuntimeId(block_id));
+            self
+        }
+
+        fn with_authoritative_hit(mut self, hit: Option<ClientCursorHit>) -> Self {
+            self.authoritative_hit = hit;
             self
         }
     }
@@ -556,7 +945,7 @@ mod tests {
         }
 
         fn authoritative_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
-            panic!("block interaction submit path must use prediction-aware cursor hits");
+            self.authoritative_hit
         }
 
         fn predicted_cursor_hit(&self, _max_distance_m: f32) -> Option<ClientCursorHit> {
@@ -564,11 +953,21 @@ mod tests {
         }
 
         fn predicted_block_id_at(&self, pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
-            Some(*self.blocks.get(&pos).unwrap_or(&BlockRuntimeId(0)))
+            Some(
+                *self
+                    .predicted_blocks
+                    .get(&pos)
+                    .unwrap_or(&BlockRuntimeId(0)),
+            )
         }
 
-        fn authoritative_block_id_at(&self, _pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
-            panic!("block interaction submit path must not query authoritative block ids");
+        fn authoritative_block_id_at(&self, pos: (i32, i32, i32)) -> Option<BlockRuntimeId> {
+            Some(
+                *self
+                    .authoritative_blocks
+                    .get(&pos)
+                    .unwrap_or(&BlockRuntimeId(0)),
+            )
         }
     }
 
@@ -603,7 +1002,13 @@ mod tests {
     struct NoopPlayers;
 
     impl ClientPlayerProvider for NoopPlayers {
-        fn list_players(&self, _out: &mut Vec<ClientPlayerView>) {}
+        fn list_players(&self, out: &mut Vec<ClientPlayerView>) {
+            out.push(ClientPlayerView {
+                player_id: 7,
+                world_pos_m: (0.5, 0.9, 0.5),
+                is_local: true,
+            });
+        }
 
         fn display_name_for(&self, _player_id: u64) -> Option<String> {
             None
@@ -698,6 +1103,7 @@ mod tests {
     }
 
     fn ensure_action_kinds() {
+        clear_local_terrain_predictions();
         let _ = crate::VANILLA_ACTION_KINDS.get_or_init(|| crate::VanillaActionKinds {
             break_kind: ActionKindId(1),
             place_kind: ActionKindId(2),
@@ -783,11 +1189,11 @@ mod tests {
             right: false,
         };
         let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (4, 5, 6),
-            face: ClientBlockFace::PosX,
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
             distance_m: 1.5,
         })
-        .with_block((4, 5, 6), 1);
+        .with_block((2, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -813,16 +1219,16 @@ mod tests {
         assert_eq!(payload.identity.input_seq, 42);
         assert_eq!(payload.identity.action_seq, None);
         assert_eq!(payload.identity.depends_on, Vec::new());
-        assert_eq!(payload.hit.hit_block_pos, (4, 5, 6));
-        assert_eq!(payload.hit.hit_face, ClientBlockFace::PosX);
-        assert_eq!(payload.ray.ray_origin_m, [0.0, 0.0, 0.0]);
+        assert_eq!(payload.hit.hit_block_pos, (2, 1, 0));
+        assert_eq!(payload.hit.hit_face, ClientBlockFace::NegX);
+        assert_eq!(payload.ray.ray_origin_m, [0.5, 1.62, 0.5]);
         assert_eq!(payload.ray.ray_dir, [1.0, 0.0, 0.0]);
         assert_eq!(payload.ray.max_distance_m, MAX_RAYCAST_DISTANCE_M);
         assert_eq!(payload.ray.client_view_tick, Some(7));
         assert_eq!(payload.hit.hit_point_m, None);
         assert_eq!(
             req.predicted,
-            vec![ClientPredictedEdit::clear_block((4, 5, 6))]
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
         );
     }
 
@@ -860,12 +1266,12 @@ mod tests {
             right: false,
         };
         let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (5, 5, 6),
+            block_pos: (3, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 2.5,
         })
-        .with_block((4, 5, 6), 0)
-        .with_block((5, 5, 6), 1);
+        .with_block((2, 1, 0), 0)
+        .with_block((3, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -884,10 +1290,10 @@ mod tests {
         assert_eq!(interaction.requests.len(), 1);
         let req = &interaction.requests[0];
         let payload = decode_break_payload_v2(&req.payload).expect("decode break");
-        assert_eq!(payload.hit.hit_block_pos, (5, 5, 6));
+        assert_eq!(payload.hit.hit_block_pos, (3, 1, 0));
         assert_eq!(
             req.predicted,
-            vec![ClientPredictedEdit::clear_block((5, 5, 6))]
+            vec![ClientPredictedEdit::clear_block((3, 1, 0))]
         );
     }
 
@@ -901,12 +1307,12 @@ mod tests {
             right: true,
         };
         let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (11, 20, 30),
+            block_pos: (2, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 2.0,
         })
-        .with_block((10, 20, 30), 0)
-        .with_block((11, 20, 30), 1);
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -927,18 +1333,18 @@ mod tests {
         assert_eq!(req.action_kind_id, place_action_kind_id());
         assert_eq!(req.at_input_seq, 42);
         let payload = decode_place_payload_v2(&req.payload).expect("decode place");
-        assert_eq!(payload.hit.hit_block_pos, (11, 20, 30));
+        assert_eq!(payload.hit.hit_block_pos, (2, 1, 0));
         assert_eq!(payload.hit.hit_face, ClientBlockFace::NegX);
         let place = payload.place.expect("place intent");
-        assert_eq!(place.support_block_pos, (11, 20, 30));
-        assert_eq!(place.placement_pos, (10, 20, 30));
+        assert_eq!(place.support_block_pos, (2, 1, 0));
+        assert_eq!(place.placement_pos, (1, 1, 0));
         assert_eq!(place.block_id, BlockRuntimeId(3));
         assert!(place.expected_placement_empty);
         assert!(place.expected_support_solid);
         assert_eq!(
             req.predicted,
             vec![ClientPredictedEdit {
-                pos: (10, 20, 30),
+                pos: (1, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
@@ -954,12 +1360,12 @@ mod tests {
             right: true,
         };
         let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (10, 20, 30),
+            block_pos: (1, 1, 0),
             face: ClientBlockFace::PosY,
             distance_m: 2.0,
         })
-        .with_block((10, 20, 30), 0)
-        .with_block((10, 21, 30), 0);
+        .with_block((1, 1, 0), 0)
+        .with_block((10, 2, 30), 0);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -976,6 +1382,277 @@ mod tests {
         }
 
         assert!(interaction.requests.is_empty());
+    }
+
+    #[test]
+    fn rapid_break_spam_stale_predicted_only_target_does_not_flash_prediction() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input = TestInput {
+            left: true,
+            right: false,
+        };
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_predicted_block((2, 1, 0), 1)
+        .with_authoritative_block((2, 1, 0), 0);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(13, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert!(interaction.requests.is_empty());
+    }
+
+    #[test]
+    fn rapid_place_spam_authoritative_occupied_cell_does_not_flash_prediction() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input = TestInput {
+            left: false,
+            right: true,
+        };
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((2, 1, 0), 1)
+        .with_predicted_block((1, 1, 0), 0)
+        .with_authoritative_block((1, 1, 0), 2);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(14, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert!(interaction.requests.is_empty());
+    }
+
+    #[test]
+    fn valid_rapid_break_chain_remains_predicted() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input = TestInput {
+            left: true,
+            right: false,
+        };
+        let mut first_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut first_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(15, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        let mut input = TestInput {
+            left: true,
+            right: false,
+        };
+        let mut second_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (3, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 2.5,
+        })
+        .with_predicted_block((2, 1, 0), 0)
+        .with_authoritative_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1)
+        .with_authoritative_hit(Some(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        }));
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut second_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(16, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit::clear_block((2, 1, 0))]
+        );
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit::clear_block((3, 1, 0))]
+        );
+    }
+
+    #[test]
+    fn valid_rapid_place_chain_remains_predicted() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input = TestInput {
+            left: false,
+            right: true,
+        };
+        let mut first_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut first_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(17, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        let mut input = TestInput {
+            left: false,
+            right: true,
+        };
+        let mut second_camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (1, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 0.5,
+        })
+        .with_block((0, 1, 0), 0)
+        .with_predicted_block((1, 1, 0), 3)
+        .with_authoritative_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1)
+        .with_authoritative_hit(Some(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        }));
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut second_camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(18, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(interaction.requests.len(), 2);
+        assert_eq!(
+            interaction.requests[0].predicted,
+            vec![ClientPredictedEdit {
+                pos: (1, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+        assert_eq!(
+            interaction.requests[1].predicted,
+            vec![ClientPredictedEdit {
+                pos: (0, 1, 0),
+                predicted_block_id: BlockRuntimeId(3),
+            }]
+        );
+    }
+
+    #[test]
+    fn client_server_v2_validation_parity_for_same_intent_snapshot() {
+        ensure_action_kinds();
+
+        let intent = server_break_intent((2, 1, 0), 1.5, 42, 1);
+        let authority = TestAuthority::default().with_block((2, 1, 0), 1);
+        let world = BlockWorldViewTerrainAdapter::new(&authority);
+        let rules = TestTerrainRules { world: &authority };
+        let policy = TerrainInteractionValidationPolicyV2::new([0.5, 1.62, 0.5], 5.0);
+        let server_validation = validate_terrain_interaction_v2(&world, &rules, &policy, &intent);
+
+        let camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((2, 1, 0), 1);
+        let mut players = NoopPlayers;
+        let client_validation =
+            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+
+        assert!(matches!(
+            server_validation,
+            TerrainInteractionValidationV2::Accepted(_)
+        ));
+        assert!(client_validation.is_ok());
+    }
+
+    #[test]
+    fn local_v2_prediction_reject_surfaces_concrete_reason() {
+        ensure_action_kinds();
+
+        let intent = server_break_intent((2, 1, 0), 1.5, 42, 1);
+        let camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 1)
+        .with_block((2, 1, 0), 1);
+        let mut players = NoopPlayers;
+
+        let client_validation =
+            validate_local_prediction_admission(&camera, &mut players, None, &intent);
+
+        assert_eq!(
+            client_validation,
+            Err(TerrainInteractionRejectReasonV2::Occluded)
+        );
     }
 
     #[test]
@@ -1269,12 +1946,12 @@ mod tests {
             right: true,
         };
         let mut place_camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (11, 20, 30),
+            block_pos: (2, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 2.0,
         })
-        .with_block((10, 20, 30), 0)
-        .with_block((11, 20, 30), 1);
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -1295,12 +1972,12 @@ mod tests {
             right: false,
         };
         let mut break_camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (10, 20, 30),
+            block_pos: (1, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 1.5,
         })
-        .with_block((10, 20, 30), 3)
-        .with_block((11, 20, 30), 1);
+        .with_block((1, 1, 0), 3)
+        .with_block((2, 1, 0), 1);
 
         {
             let client = ClientApi::new(
@@ -1318,13 +1995,13 @@ mod tests {
         assert_eq!(
             interaction.requests[0].predicted,
             vec![ClientPredictedEdit {
-                pos: (10, 20, 30),
+                pos: (1, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
         assert_eq!(
             interaction.requests[1].predicted,
-            vec![ClientPredictedEdit::clear_block((10, 20, 30))]
+            vec![ClientPredictedEdit::clear_block((1, 1, 0))]
         );
     }
 }

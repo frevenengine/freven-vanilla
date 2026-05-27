@@ -53,19 +53,31 @@ impl ActionHandler for PlaceActionHandler {
         };
 
         if let TerrainInteractionValidationV2::Rejected(reason) = validation {
+            let target_pos = intent.hit.hit_block_pos;
+            let place_pos = intent.place.as_ref().map(|place| place.placement_pos);
+            let target_block = block_authority.block(target_pos.0, target_pos.1, target_pos.2);
+            let place_block = place_pos.and_then(|pos| block_authority.block(pos.0, pos.1, pos.2));
             emit_log(
                 LogLevel::Debug,
                 format!(
-                    "place terrain interaction rejected: reason={reason:?} player_id={} \
-                     authoritative_origin_m={:?} client_ray_origin_m={:?} ray_dir={:?} \
-                     hit_block_pos={:?} hit_face={:?} placement_pos={:?}",
+                    "terrain interaction rejected: kind=place reason={reason:?} player_id={} \
+                     action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?} \
+                     hit_block_pos={:?} place_pos={:?} hit_face={:?} ray_origin_m={:?} \
+                     ray_dir={:?} authoritative_target_block={:?} \
+                     authoritative_place_block={:?} server_interaction_origin_m={:?}",
                     ctx.player_id,
-                    authoritative_origin_m,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
+                    intent.hit.hit_block_pos,
+                    place_pos,
+                    intent.hit.hit_face,
                     intent.ray.ray_origin_m,
                     intent.ray.ray_dir,
-                    intent.hit.hit_block_pos,
-                    intent.hit.hit_face,
-                    intent.place.as_ref().map(|place| place.placement_pos),
+                    target_block,
+                    place_block,
+                    authoritative_origin_m,
                 ),
             );
             return ActionOutcome::Rejected;

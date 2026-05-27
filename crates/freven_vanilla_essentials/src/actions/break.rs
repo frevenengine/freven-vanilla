@@ -47,18 +47,27 @@ impl ActionHandler for BreakActionHandler {
         };
 
         if let TerrainInteractionValidationV2::Rejected(reason) = validation {
+            let target_pos = intent.hit.hit_block_pos;
+            let target_block = block_authority.block(target_pos.0, target_pos.1, target_pos.2);
             emit_log(
                 LogLevel::Debug,
                 format!(
-                    "break terrain interaction rejected: reason={reason:?} player_id={} \
-                     authoritative_origin_m={:?} client_ray_origin_m={:?} ray_dir={:?} \
-                     hit_block_pos={:?} hit_face={:?}",
+                    "terrain interaction rejected: kind=break reason={reason:?} player_id={} \
+                     action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?} \
+                     hit_block_pos={:?} place_pos=None hit_face={:?} ray_origin_m={:?} \
+                     ray_dir={:?} authoritative_target_block={:?} \
+                     authoritative_place_block=None server_interaction_origin_m={:?}",
                     ctx.player_id,
-                    authoritative_origin_m,
-                    intent.ray.ray_origin_m,
-                    intent.ray.ray_dir,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
                     intent.hit.hit_block_pos,
                     intent.hit.hit_face,
+                    intent.ray.ray_origin_m,
+                    intent.ray.ray_dir,
+                    target_block,
+                    authoritative_origin_m,
                 ),
             );
             return ActionOutcome::Rejected;
