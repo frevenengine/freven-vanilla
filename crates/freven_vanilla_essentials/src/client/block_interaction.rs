@@ -736,6 +736,18 @@ fn remember_local_terrain_predictions(
 fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider, current_tick: u64) {
     LOCAL_TERRAIN_PREDICTIONS.with(|state| {
         state.borrow_mut().pending.retain(|pending| {
+            let age_ticks = current_tick.saturating_sub(pending.created_client_tick);
+
+            // The engine presentation path is frame-paced. Immediately after
+            // submit, camera reads can briefly expose a mix of old,
+            // optimistic, and authoritative-looking values. Keep the
+            // Vanilla-owned dependency bridge unconditionally during this
+            // short bounded window so a following click validates against the
+            // submitted local stream.
+            if age_ticks <= LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS {
+                return true;
+            }
+
             let predicted = camera.predicted_block_id_at(pending.pos);
             let authoritative = camera.authoritative_block_id_at(pending.pos);
 
@@ -745,16 +757,7 @@ fn prune_local_terrain_predictions(camera: &dyn ClientCameraHitProvider, current
             }
 
             // The local presented/predicted read still carries this edit.
-            if predicted == Some(pending.predicted_block_id) {
-                return true;
-            }
-
-            // The engine presentation path is frame-paced. Immediately after
-            // submit, both predicted and authoritative reads may still expose
-            // the old value. Keep the Vanilla-owned dependency bridge briefly
-            // so a following click can validate against the submitted stream.
-            current_tick.saturating_sub(pending.created_client_tick)
-                <= LOCAL_TERRAIN_PREDICTION_PRUNE_GRACE_TICKS
+            predicted == Some(pending.predicted_block_id)
         });
     });
 }
@@ -1863,7 +1866,7 @@ mod tests {
     }
 
     #[test]
-    fn next_tick_left_then_right_retains_pending_break_until_presented_read_catches_up() {
+    fn next_tick_left_then_right_retains_pending_break_through_grace_window() {
         ensure_action_kinds();
         clear_local_terrain_predictions();
 
