@@ -226,8 +226,10 @@ pub fn register(ctx: &mut ModContext<'_>) {
         )
         .expect("vanilla essentials must register freven.vanilla:humanoid_controls");
 
-        ctx.on_start_client(client::block_interaction::start_client);
-        ctx.on_tick_client(client::block_interaction::tick_client);
+        ctx.register_client_lifecycle_handler(
+            client::block_interaction::BlockInteractionClientState::default(),
+        )
+        .expect("vanilla essentials must register block interaction client lifecycle handler");
         ctx.on_start_client(modmsg_start_client);
         ctx.on_client_messages(modmsg_client_messages);
         ctx.on_start_client(log_start_client);

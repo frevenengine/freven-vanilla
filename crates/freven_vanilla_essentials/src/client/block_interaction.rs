@@ -5,7 +5,7 @@ use crate::actions::targeting::{
     MAX_ACTION_REACH_M, bounded_client_aim_origin_m, humanoid_interaction_origin_m,
 };
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
-use freven_avatar_api::{ClientApi, ClientTickApi};
+use freven_avatar_api::{ClientApi, ClientLifecycleHandler, ClientTickApi};
 use freven_avatar_sdk_types::{ClientMouseButton, ClientPlayerProvider, ClientPlayerView};
 use freven_block_api::{
     ClientBlockFace, ClientCameraHitProvider, ClientCameraRay, ClientCursorHit,
@@ -34,56 +34,120 @@ pub fn start_client(api: &mut ClientApi<'_>) {
     let _ = api.input.bind_mouse_button(ClientMouseButton::Right, OWNER);
 }
 
-pub fn tick_client(tick: &mut ClientTickApi<'_>) {
-    // Drain a bounded ordered click batch. This preserves repeated RMB clicks
-    // and LMB/RMB ordering captured by the engine input queue while avoiding
-    // unbounded action spam in one client tick.
-    let presses = tick
-        .client
-        .input
-        .drain_mouse_button_presses(OWNER, MAX_MOUSE_PRESSES_PER_TICK);
+#[cfg(test)]
+fn tick_client(tick: &mut ClientTickApi<'_>) {
+    // Test-only stateless harness for legacy single-tick unit coverage.
+    // Runtime registration uses `BlockInteractionClientState` below so
+    // cross-tick intent aggregation is owned by the client session.
+    let mut state = BlockInteractionClientState::default();
+    state.tick_client_inner(tick, false);
+}
 
-    if !presses.is_empty() {
-        tracing::debug!(
-            target: "freven_vanilla_essentials::client::block_interaction",
-            owner = OWNER,
-            press_count = presses.len(),
-            presses = ?presses,
-            "drained block interaction mouse presses",
-        );
+#[derive(Default)]
+pub struct BlockInteractionClientState {
+    pending_place: Option<PreparedBlockAction>,
+}
+
+impl ClientLifecycleHandler for BlockInteractionClientState {
+    fn on_start_client(&mut self, api: &mut ClientApi<'_>) {
+        self.pending_place = None;
+        start_client(api);
     }
 
-    let mut batch_predicted_edits = Vec::<ClientPredictedEdit>::new();
-    let mut prepared_actions = Vec::<PreparedBlockAction>::new();
+    fn on_tick_client(&mut self, tick: &mut ClientTickApi<'_>) {
+        self.tick_client_inner(tick, true);
+    }
+}
 
-    for press in presses {
-        tracing::debug!(
-            target: "freven_vanilla_essentials::client::block_interaction",
-            action = ?press.button,
-            "handling block interaction mouse press",
-        );
+impl BlockInteractionClientState {
+    fn tick_client_inner(&mut self, tick: &mut ClientTickApi<'_>, defer_isolated_place: bool) {
+        // Drain a bounded ordered click batch. This preserves repeated RMB clicks
+        // and LMB/RMB ordering captured by the engine input queue while avoiding
+        // unbounded action spam in one client tick.
+        let presses = tick
+            .client
+            .input
+            .drain_mouse_button_presses(OWNER, MAX_MOUSE_PRESSES_PER_TICK);
 
-        let Some(prepared) = prepare_mouse_press_action(tick, press.button, &batch_predicted_edits)
-        else {
-            continue;
-        };
-
-        if coalesce_net_neutral_same_frame_place_break(
-            &mut prepared_actions,
-            &mut batch_predicted_edits,
-            &prepared,
-        ) {
-            log_coalesced_net_neutral_same_frame_place_break(tick, &prepared);
-            continue;
+        if !presses.is_empty() {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::client::block_interaction",
+                owner = OWNER,
+                press_count = presses.len(),
+                presses = ?presses,
+                "drained block interaction mouse presses",
+            );
         }
 
-        batch_predicted_edits.extend(prepared.predicted.iter().copied());
-        prepared_actions.push(prepared);
-    }
+        let had_pending_place_at_tick_start = self.pending_place.is_some();
+        let mut pending_place = self.pending_place.take();
+        let mut batch_predicted_edits = Vec::<ClientPredictedEdit>::new();
+        if let Some(pending) = pending_place.as_ref() {
+            batch_predicted_edits.extend(pending.predicted.iter().copied());
+        }
 
-    for prepared in prepared_actions {
-        if !submit_prepared_block_action(tick, prepared) {
-            break;
+        let mut prepared_actions = Vec::<PreparedBlockAction>::new();
+
+        for press in presses {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::client::block_interaction",
+                action = ?press.button,
+                "handling block interaction mouse press",
+            );
+
+            let Some(prepared) =
+                prepare_mouse_press_action(tick, press.button, &batch_predicted_edits)
+            else {
+                continue;
+            };
+
+            if let Some(previous_place) = pending_place.take() {
+                if let Some(placed_edit) =
+                    net_neutral_place_break_predicted_edit(&previous_place, &prepared)
+                    && remove_batch_predicted_edit(&mut batch_predicted_edits, placed_edit)
+                {
+                    log_coalesced_net_neutral_bounded_place_break(tick, &prepared);
+                    continue;
+                }
+
+                prepared_actions.push(previous_place);
+            }
+
+            if coalesce_net_neutral_same_frame_place_break(
+                &mut prepared_actions,
+                &mut batch_predicted_edits,
+                &prepared,
+            ) {
+                log_coalesced_net_neutral_same_frame_place_break(tick, &prepared);
+                continue;
+            }
+
+            batch_predicted_edits.extend(prepared.predicted.iter().copied());
+            prepared_actions.push(prepared);
+        }
+
+        if let Some(previous_place) = pending_place.take() {
+            prepared_actions.push(previous_place);
+        }
+
+        if defer_isolated_place
+            && !had_pending_place_at_tick_start
+            && prepared_actions.len() == 1
+            && prepared_actions[0].kind == PreparedBlockActionKind::Place
+        {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::client::block_interaction",
+                at_input_seq = prepared_actions[0].intent.identity.input_seq,
+                place_pos = ?prepared_actions[0].predicted.first().map(|edit| edit.pos),
+                "holding isolated place intent for bounded cancel window",
+            );
+            self.pending_place = prepared_actions.pop();
+        }
+
+        for prepared in prepared_actions {
+            if !submit_prepared_block_action(tick, prepared) {
+                break;
+            }
         }
     }
 }
@@ -280,53 +344,70 @@ fn coalesce_net_neutral_same_frame_place_break(
     batch_predicted_edits: &mut Vec<ClientPredictedEdit>,
     next: &PreparedBlockAction,
 ) -> bool {
-    if next.kind != PreparedBlockActionKind::Break {
-        return false;
-    }
-
     let Some(previous) = prepared_actions.last() else {
         return false;
     };
-    if previous.kind != PreparedBlockActionKind::Place {
+    let Some(placed_edit) = net_neutral_place_break_predicted_edit(previous, next) else {
+        return false;
+    };
+    if !remove_batch_predicted_edit(batch_predicted_edits, placed_edit) {
         return false;
     }
 
-    let [placed_edit] = previous.predicted.as_slice() else {
-        return false;
+    prepared_actions.pop();
+    true
+}
+
+fn net_neutral_place_break_predicted_edit(
+    place: &PreparedBlockAction,
+    next: &PreparedBlockAction,
+) -> Option<ClientPredictedEdit> {
+    if place.kind != PreparedBlockActionKind::Place || next.kind != PreparedBlockActionKind::Break {
+        return None;
+    }
+
+    let [placed_edit] = place.predicted.as_slice() else {
+        return None;
     };
     let [break_edit] = next.predicted.as_slice() else {
-        return false;
+        return None;
     };
 
     if placed_edit.predicted_block_id.0 == 0 {
-        return false;
+        return None;
     }
     if break_edit.predicted_block_id.0 != 0 {
-        return false;
+        return None;
     }
     if placed_edit.pos != break_edit.pos {
-        return false;
+        return None;
     }
     if next.admission.target_predicted_block != Some(placed_edit.predicted_block_id) {
-        return false;
+        return None;
     }
     if next
         .admission
         .target_authoritative_block
         .is_none_or(|block| block.0 != 0)
     {
-        return false;
+        return None;
     }
 
+    Some(*placed_edit)
+}
+
+fn remove_batch_predicted_edit(
+    batch_predicted_edits: &mut Vec<ClientPredictedEdit>,
+    edit: ClientPredictedEdit,
+) -> bool {
     let Some(batch_index) = batch_predicted_edits
         .iter()
-        .rposition(|edit| edit.pos == placed_edit.pos && *edit == *placed_edit)
+        .rposition(|candidate| *candidate == edit)
     else {
         return false;
     };
 
     batch_predicted_edits.remove(batch_index);
-    prepared_actions.pop();
     true
 }
 
@@ -345,6 +426,31 @@ fn log_coalesced_net_neutral_same_frame_place_break(
 
     let message = format!(
         "coalesced net-neutral same-frame place-break before submit: at_input_seq={} \
+         target_pos={:?} predicted_target_block={:?} authoritative_target_block={:?}",
+        break_action.intent.identity.input_seq,
+        break_action.intent.hit.hit_block_pos,
+        break_action.admission.target_predicted_block,
+        break_action.admission.target_authoritative_block,
+    );
+    tick.log(LogLevel::Debug, message.clone());
+    emit_log(LogLevel::Debug, message);
+}
+
+fn log_coalesced_net_neutral_bounded_place_break(
+    tick: &mut ClientTickApi<'_>,
+    break_action: &PreparedBlockAction,
+) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        at_input_seq = break_action.intent.identity.input_seq,
+        target_pos = ?break_action.intent.hit.hit_block_pos,
+        predicted_target_block = ?break_action.admission.target_predicted_block,
+        authoritative_target_block = ?break_action.admission.target_authoritative_block,
+        "coalesced net-neutral bounded place-break before submit",
+    );
+
+    let message = format!(
+        "coalesced net-neutral bounded place-break before submit: at_input_seq={} \
          target_pos={:?} predicted_target_block={:?} authoritative_target_block={:?}",
         break_action.intent.identity.input_seq,
         break_action.intent.hit.hit_block_pos,
@@ -1922,6 +2028,129 @@ mod tests {
                 pos: (0, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
+        );
+    }
+
+    #[test]
+    fn isolated_place_intent_flushes_after_bounded_cancel_window() {
+        ensure_action_kinds();
+
+        let mut state = BlockInteractionClientState::default();
+        let mut services = NoopServices;
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Right]);
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(23, std::time::Duration::from_millis(33), client);
+            state.on_tick_client(&mut tick);
+        }
+
+        assert!(
+            interaction.requests.is_empty(),
+            "isolated place should be held for one bounded cancel window before submit"
+        );
+        assert!(
+            state.pending_place.is_some(),
+            "held place intent must live in runtime-owned client lifecycle state"
+        );
+
+        {
+            let mut input = OrderedTestInput::new(Vec::<ClientMouseButton>::new());
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(24, std::time::Duration::from_millis(33), client);
+            state.on_tick_client(&mut tick);
+        }
+
+        assert_eq!(
+            interaction.requests.len(),
+            1,
+            "place must flush after the bounded cancel window when no inverse arrives"
+        );
+        assert_eq!(
+            interaction.requests[0].action_kind_id,
+            place_action_kind_id()
+        );
+        assert!(
+            state.pending_place.is_none(),
+            "pending place must be consumed after flush"
+        );
+    }
+
+    #[test]
+    fn near_frame_place_then_break_predicted_only_block_coalesces_to_noop() {
+        ensure_action_kinds();
+
+        let mut state = BlockInteractionClientState::default();
+        let mut services = NoopServices;
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Right]);
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(23, std::time::Duration::from_millis(33), client);
+            state.on_tick_client(&mut tick);
+        }
+
+        assert!(
+            interaction.requests.is_empty(),
+            "first isolated place must not submit before the cancel window closes"
+        );
+
+        {
+            let mut input = OrderedTestInput::new(vec![ClientMouseButton::Left]);
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(24, std::time::Duration::from_millis(33), client);
+            state.on_tick_client(&mut tick);
+        }
+
+        assert!(
+            interaction.requests.is_empty(),
+            "near-frame break of the exact pending predicted-only placed block is net-neutral and must not submit server actions"
+        );
+        assert!(
+            state.pending_place.is_none(),
+            "pending place must be consumed by exact inverse coalescing"
         );
     }
 
