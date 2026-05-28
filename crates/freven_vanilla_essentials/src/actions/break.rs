@@ -1,11 +1,13 @@
 //! Handler for vanilla `freven:break` actions.
 
 use crate::action_payloads::decode_break_payload_v2;
-use crate::actions::targeting::{MAX_ACTION_REACH_M, humanoid_interaction_origin_m};
+use crate::actions::targeting::{
+    MAX_ACTION_REACH_M, bounded_client_aim_origin_m, humanoid_interaction_origin_m,
+};
 use freven_block_api::{
-    BlockMutationResult, BlockWorldViewTerrainAdapter, TerrainInteractionRulesV2,
-    TerrainInteractionValidationPolicyV2, TerrainInteractionValidationV2,
-    validate_terrain_interaction_v2_report,
+    BlockMutationResult, BlockWorldViewTerrainAdapter, TerrainInteractionRejectReasonV2,
+    TerrainInteractionRulesV2, TerrainInteractionValidationPolicyV2,
+    TerrainInteractionValidationV2, validate_terrain_interaction_v2_report,
 };
 use freven_block_guest::BlockMutation;
 use freven_block_sdk_types::BlockRuntimeId;
@@ -37,7 +39,45 @@ impl ActionHandler for BreakActionHandler {
         };
 
         let authoritative_origin_m = humanoid_interaction_origin_m(player_center_pos);
-        let policy = terrain_validation_policy(player_center_pos, cmd);
+        let Some(validation_origin_m) =
+            bounded_client_aim_origin_m(authoritative_origin_m, intent.ray.ray_origin_m)
+        else {
+            let target_pos = intent.hit.hit_block_pos;
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::break",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                reason = ?TerrainInteractionRejectReasonV2::PolicyDenied,
+                target_pos = ?target_pos,
+                hit_face = ?intent.hit.hit_face,
+                ray_origin_m = ?intent.ray.ray_origin_m,
+                ray_dir = ?intent.ray.ray_dir,
+                authoritative_humanoid_origin_m = ?authoritative_origin_m,
+                "terrain interaction rejected",
+            );
+            emit_log(
+                LogLevel::Debug,
+                format!(
+                    "terrain interaction rejected: kind=break reason={:?} player_id={}                      action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?}                      hit_block_pos={:?} place_pos=None hit_face={:?} ray_origin_m={:?}                      ray_dir={:?} authoritative_humanoid_origin_m={:?}",
+                    TerrainInteractionRejectReasonV2::PolicyDenied,
+                    ctx.player_id,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
+                    intent.hit.hit_block_pos,
+                    intent.hit.hit_face,
+                    intent.ray.ray_origin_m,
+                    intent.ray.ray_dir,
+                    authoritative_origin_m,
+                ),
+            );
+            return ActionOutcome::Rejected;
+        };
+
+        let policy = terrain_validation_policy(validation_origin_m, cmd);
         let validation = {
             let world = BlockWorldViewTerrainAdapter::new(&**block_authority);
             let rules = VanillaBreakRules {
@@ -61,7 +101,8 @@ impl ActionHandler for BreakActionHandler {
                 ray_origin_m = ?intent.ray.ray_origin_m,
                 ray_dir = ?intent.ray.ray_dir,
                 authoritative_target_block = ?target_block,
-                server_interaction_origin_m = ?authoritative_origin_m,
+                server_interaction_origin_m = ?validation_origin_m,
+                authoritative_humanoid_origin_m = ?authoritative_origin_m,
                 trace = ?validation.trace,
                 "terrain interaction rejected",
             );
@@ -72,7 +113,7 @@ impl ActionHandler for BreakActionHandler {
                      action_seq={} intent_action_seq={:?} at_input_seq={} target_pos={:?} \
                      hit_block_pos={:?} place_pos=None hit_face={:?} ray_origin_m={:?} \
                      ray_dir={:?} authoritative_target_block={:?} \
-                     authoritative_place_block=None server_interaction_origin_m={:?} trace={:?}",
+                     authoritative_place_block=None server_interaction_origin_m={:?} authoritative_humanoid_origin_m={:?} trace={:?}",
                     ctx.player_id,
                     cmd.seq,
                     intent.identity.action_seq,
@@ -83,6 +124,7 @@ impl ActionHandler for BreakActionHandler {
                     intent.ray.ray_origin_m,
                     intent.ray.ray_dir,
                     target_block,
+                    validation_origin_m,
                     authoritative_origin_m,
                     validation.trace,
                 ),
@@ -162,13 +204,11 @@ impl TerrainInteractionRulesV2 for VanillaBreakRules<'_> {
 }
 
 pub(crate) fn terrain_validation_policy(
-    player_center_pos_m: [f32; 3],
+    interaction_origin_m: [f32; 3],
     cmd: &ActionCmdView<'_>,
 ) -> TerrainInteractionValidationPolicyV2 {
-    let mut policy = TerrainInteractionValidationPolicyV2::new(
-        humanoid_interaction_origin_m(player_center_pos_m),
-        MAX_ACTION_REACH_M,
-    );
+    let mut policy =
+        TerrainInteractionValidationPolicyV2::new(interaction_origin_m, MAX_ACTION_REACH_M);
     policy.active_level_id = Some(cmd.level_id);
     policy.active_stream_epoch = Some(cmd.stream_epoch);
     policy.min_input_seq = Some(cmd.at_input_seq);
