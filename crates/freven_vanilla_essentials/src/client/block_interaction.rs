@@ -54,6 +54,7 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
     }
 
     let mut batch_predicted_edits = Vec::<ClientPredictedEdit>::new();
+    let mut prepared_actions = Vec::<PreparedBlockAction>::new();
 
     for press in presses {
         tracing::debug!(
@@ -61,19 +62,56 @@ pub fn tick_client(tick: &mut ClientTickApi<'_>) {
             action = ?press.button,
             "handling block interaction mouse press",
         );
-        handle_mouse_press_action(tick, press.button, &mut batch_predicted_edits);
+
+        let Some(prepared) = prepare_mouse_press_action(tick, press.button, &batch_predicted_edits)
+        else {
+            continue;
+        };
+
+        if coalesce_net_neutral_same_frame_place_break(
+            &mut prepared_actions,
+            &mut batch_predicted_edits,
+            &prepared,
+        ) {
+            log_coalesced_net_neutral_same_frame_place_break(tick, &prepared);
+            continue;
+        }
+
+        batch_predicted_edits.extend(prepared.predicted.iter().copied());
+        prepared_actions.push(prepared);
+    }
+
+    for prepared in prepared_actions {
+        if !submit_prepared_block_action(tick, prepared) {
+            break;
+        }
     }
 }
 
-fn handle_mouse_press_action(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreparedBlockActionKind {
+    Break,
+    Place,
+}
+
+struct PreparedBlockAction {
+    kind: PreparedBlockActionKind,
+    at_input_seq: u32,
+    payload: Vec<u8>,
+    predicted: Vec<ClientPredictedEdit>,
+    intent: TerrainInteractionIntentV2,
+    admission: LocalPredictionAdmission,
+}
+
+fn prepare_mouse_press_action(
     tick: &mut ClientTickApi<'_>,
     action: ClientMouseButton,
-    batch_predicted_edits: &mut Vec<ClientPredictedEdit>,
-) {
+    batch_predicted_edits: &[ClientPredictedEdit],
+) -> Option<PreparedBlockAction> {
     // We only allow submitting actions when the client has an active stream.
     let Some((level_id, stream_epoch)) = tick.client.interaction.active_stream() else {
         log_local_skip(tick, action, "no active world stream");
-        return;
+        return None;
     };
 
     let at_input_seq = tick.client.interaction.next_input_seq();
@@ -85,7 +123,7 @@ fn handle_mouse_press_action(
                 select_presented_break_target(tick.client.camera, batch_predicted_edits)
             else {
                 log_local_skip(tick, action, missing_target_reason(action));
-                return;
+                return None;
             };
 
             let intent = build_break_intent(
@@ -105,7 +143,7 @@ fn handle_mouse_press_action(
                 Ok(admission) => admission,
                 Err(reason) => {
                     log_local_validation_reject(tick, "break", &intent, reason);
-                    return;
+                    return None;
                 }
             };
 
@@ -113,26 +151,18 @@ fn handle_mouse_press_action(
                 Ok(payload) => payload,
                 Err(err) => {
                     log_encode_failure(tick, action, &err);
-                    return;
+                    return None;
                 }
             };
 
-            let predicted = vec![ClientPredictedEdit::clear_block(target.hit.block_pos)];
-            let req = ClientActionRequest {
-                action_kind_id: break_action_kind_id(),
-                payload: Arc::from(payload),
+            Some(PreparedBlockAction {
+                kind: PreparedBlockActionKind::Break,
                 at_input_seq,
-                predicted: predicted.clone(),
-            };
-
-            // Engine assigns action_seq and owns retransmit/prediction.
-            match tick.client.interaction.submit_action(req) {
-                Ok(action_seq) => {
-                    batch_predicted_edits.extend(predicted.iter().copied());
-                    log_local_prediction_accepted(tick, "break", action_seq, &intent, admission);
-                }
-                Err(err) => log_submit_failure(tick, "break", err),
-            }
+                payload,
+                predicted: vec![ClientPredictedEdit::clear_block(target.hit.block_pos)],
+                intent,
+                admission,
+            })
         }
 
         ClientMouseButton::Right => {
@@ -140,7 +170,7 @@ fn handle_mouse_press_action(
                 select_presented_place_target(tick.client.camera, batch_predicted_edits)
             else {
                 log_local_skip(tick, action, missing_target_reason(action));
-                return;
+                return None;
             };
             let Some(place_block_id) =
                 query_block_id_via_block_service(tick.client.services, STONE_KEY)
@@ -150,8 +180,9 @@ fn handle_mouse_press_action(
                     action,
                     "place block id is not available in the client runtime",
                 );
-                return;
+                return None;
             };
+
             let intent = build_place_intent(
                 level_id,
                 stream_epoch,
@@ -170,7 +201,7 @@ fn handle_mouse_press_action(
                 Ok(admission) => admission,
                 Err(reason) => {
                     log_local_validation_reject(tick, "place", &intent, reason);
-                    return;
+                    return None;
                 }
             };
 
@@ -178,33 +209,150 @@ fn handle_mouse_press_action(
                 Ok(payload) => payload,
                 Err(err) => {
                     log_encode_failure(tick, action, &err);
-                    return;
+                    return None;
                 }
             };
 
-            let predicted = vec![ClientPredictedEdit {
-                pos: target.place_pos,
-                predicted_block_id: place_block_id,
-            }];
-            let req = ClientActionRequest {
-                action_kind_id: place_action_kind_id(),
-                payload: Arc::from(payload),
+            Some(PreparedBlockAction {
+                kind: PreparedBlockActionKind::Place,
                 at_input_seq,
-                predicted: predicted.clone(),
-            };
-
-            match tick.client.interaction.submit_action(req) {
-                Ok(action_seq) => {
-                    batch_predicted_edits.extend(predicted.iter().copied());
-                    log_local_prediction_accepted(tick, "place", action_seq, &intent, admission);
-                }
-                Err(err) => log_submit_failure(tick, "place", err),
-            }
+                payload,
+                predicted: vec![ClientPredictedEdit {
+                    pos: target.place_pos,
+                    predicted_block_id: place_block_id,
+                }],
+                intent,
+                admission,
+            })
         }
 
-        ClientMouseButton::Middle => {}
-        _ => {}
+        ClientMouseButton::Middle => None,
+        _ => None,
     }
+}
+
+fn submit_prepared_block_action(
+    tick: &mut ClientTickApi<'_>,
+    prepared: PreparedBlockAction,
+) -> bool {
+    let action_kind_id = match prepared.kind {
+        PreparedBlockActionKind::Break => break_action_kind_id(),
+        PreparedBlockActionKind::Place => place_action_kind_id(),
+    };
+    let action = prepared.action_name();
+
+    let req = ClientActionRequest {
+        action_kind_id,
+        payload: Arc::from(prepared.payload),
+        at_input_seq: prepared.at_input_seq,
+        predicted: prepared.predicted.clone(),
+    };
+
+    match tick.client.interaction.submit_action(req) {
+        Ok(action_seq) => {
+            log_local_prediction_accepted(
+                tick,
+                action,
+                action_seq,
+                &prepared.intent,
+                prepared.admission,
+            );
+            true
+        }
+        Err(err) => {
+            log_submit_failure(tick, action, err);
+            false
+        }
+    }
+}
+
+impl PreparedBlockAction {
+    fn action_name(&self) -> &'static str {
+        match self.kind {
+            PreparedBlockActionKind::Break => "break",
+            PreparedBlockActionKind::Place => "place",
+        }
+    }
+}
+
+fn coalesce_net_neutral_same_frame_place_break(
+    prepared_actions: &mut Vec<PreparedBlockAction>,
+    batch_predicted_edits: &mut Vec<ClientPredictedEdit>,
+    next: &PreparedBlockAction,
+) -> bool {
+    if next.kind != PreparedBlockActionKind::Break {
+        return false;
+    }
+
+    let Some(previous) = prepared_actions.last() else {
+        return false;
+    };
+    if previous.kind != PreparedBlockActionKind::Place {
+        return false;
+    }
+
+    let [placed_edit] = previous.predicted.as_slice() else {
+        return false;
+    };
+    let [break_edit] = next.predicted.as_slice() else {
+        return false;
+    };
+
+    if placed_edit.predicted_block_id.0 == 0 {
+        return false;
+    }
+    if break_edit.predicted_block_id.0 != 0 {
+        return false;
+    }
+    if placed_edit.pos != break_edit.pos {
+        return false;
+    }
+    if next.admission.target_predicted_block != Some(placed_edit.predicted_block_id) {
+        return false;
+    }
+    if next
+        .admission
+        .target_authoritative_block
+        .is_none_or(|block| block.0 != 0)
+    {
+        return false;
+    }
+
+    let Some(batch_index) = batch_predicted_edits
+        .iter()
+        .rposition(|edit| edit.pos == placed_edit.pos && *edit == *placed_edit)
+    else {
+        return false;
+    };
+
+    batch_predicted_edits.remove(batch_index);
+    prepared_actions.pop();
+    true
+}
+
+fn log_coalesced_net_neutral_same_frame_place_break(
+    tick: &mut ClientTickApi<'_>,
+    break_action: &PreparedBlockAction,
+) {
+    tracing::debug!(
+        target: "freven_vanilla_essentials::client::block_interaction",
+        at_input_seq = break_action.intent.identity.input_seq,
+        target_pos = ?break_action.intent.hit.hit_block_pos,
+        predicted_target_block = ?break_action.admission.target_predicted_block,
+        authoritative_target_block = ?break_action.admission.target_authoritative_block,
+        "coalesced net-neutral same-frame place-break before submit",
+    );
+
+    let message = format!(
+        "coalesced net-neutral same-frame place-break before submit: at_input_seq={} \
+         target_pos={:?} predicted_target_block={:?} authoritative_target_block={:?}",
+        break_action.intent.identity.input_seq,
+        break_action.intent.hit.hit_block_pos,
+        break_action.admission.target_predicted_block,
+        break_action.admission.target_authoritative_block,
+    );
+    tick.log(LogLevel::Debug, message.clone());
+    emit_log(LogLevel::Debug, message);
 }
 
 fn missing_target_reason(action: ClientMouseButton) -> &'static str {
@@ -1778,7 +1926,7 @@ mod tests {
     }
 
     #[test]
-    fn ordered_same_tick_right_then_left_preserves_order() {
+    fn same_tick_place_then_break_predicted_only_block_coalesces_to_noop() {
         ensure_action_kinds();
 
         let mut services = NoopServices;
@@ -1806,14 +1954,54 @@ mod tests {
             tick_client(&mut tick);
         }
 
-        assert_eq!(interaction.requests.len(), 2);
+        assert!(
+            interaction.requests.is_empty(),
+            "same-drain place followed by break of the exact predicted-only placed block is net-neutral and must not submit server actions"
+        );
+    }
+
+    #[test]
+    fn same_tick_left_then_right_is_not_net_neutral_place_break_coalesce() {
+        ensure_action_kinds();
+
+        let mut services = NoopServices;
+        let mut input =
+            OrderedTestInput::new(vec![ClientMouseButton::Left, ClientMouseButton::Right]);
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (2, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 0)
+        .with_block((2, 1, 0), 1)
+        .with_block((3, 1, 0), 1);
+        let mut interaction = RecordingInteraction::default();
+        let mut players = NoopPlayers;
+
+        {
+            let client = ClientApi::new(
+                &mut services,
+                &mut input,
+                &mut camera,
+                &mut interaction,
+                &mut players,
+            );
+            let mut tick = ClientTickApi::new(24, std::time::Duration::from_millis(33), client);
+            tick_client(&mut tick);
+        }
+
+        assert_eq!(
+            interaction.requests.len(),
+            2,
+            "break->place is a real ordered terrain change and must not be collapsed by the place->break no-op rule"
+        );
         assert_eq!(
             interaction.requests[0].action_kind_id,
-            place_action_kind_id()
+            break_action_kind_id()
         );
         assert_eq!(
             interaction.requests[1].action_kind_id,
-            break_action_kind_id()
+            place_action_kind_id()
         );
     }
 
