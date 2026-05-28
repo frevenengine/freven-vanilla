@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::action_payloads::{try_encode_break_payload_v2, try_encode_place_payload_v2};
-use crate::actions::targeting::{MAX_ACTION_REACH_M, humanoid_interaction_origin_m};
+use crate::actions::targeting::{
+    MAX_ACTION_REACH_M, bounded_client_aim_origin_m, humanoid_interaction_origin_m,
+};
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
 use freven_avatar_api::{ClientApi, ClientTickApi};
 use freven_avatar_sdk_types::{ClientMouseButton, ClientPlayerProvider, ClientPlayerView};
@@ -587,7 +589,12 @@ fn validate_local_prediction_admission(
     let Some(player_center_pos_m) = local_player_center_pos_m(players) else {
         return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
     };
-    let interaction_origin_m = humanoid_interaction_origin_m(player_center_pos_m);
+    let authoritative_origin_m = humanoid_interaction_origin_m(player_center_pos_m);
+    let Some(interaction_origin_m) =
+        bounded_client_aim_origin_m(authoritative_origin_m, intent.ray.ray_origin_m)
+    else {
+        return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
+    };
     let mut policy =
         TerrainInteractionValidationPolicyV2::new(interaction_origin_m, MAX_ACTION_REACH_M);
     policy.active_level_id = Some(intent.identity.level_id);
@@ -2182,6 +2189,45 @@ mod tests {
         let mut handler = crate::actions::place::PlaceActionHandler;
         assert_eq!(handler.handle(&mut ctx, &cmd), ActionOutcome::Applied);
         assert_eq!(authority.block(1, 1, 0), Some(BlockRuntimeId(3)));
+    }
+
+    #[test]
+    fn bounded_client_aim_origin_preserves_presented_hit_when_body_origin_is_occluded() {
+        let mut intent = server_break_intent((16, 7, 19), 2.1, 721, 16);
+        intent.ray.ray_origin_m = [16.264812, 7.6210003, 19.3];
+        intent.ray.ray_dir = [0.06249107, -0.7858575, -0.6152422];
+        intent.hit.hit_face = ClientBlockFace::PosY;
+
+        let authority = TestAuthority::default()
+            .with_block((16, 7, 19), 21)
+            .with_block((15, 5, 18), 13);
+        let world = BlockWorldViewTerrainAdapter::new(&authority);
+        let rules = TestTerrainRules { world: &authority };
+
+        let authoritative_body_origin = [15.7, 7.6210003, 19.3];
+        let body_policy = TerrainInteractionValidationPolicyV2::new(
+            authoritative_body_origin,
+            MAX_ACTION_REACH_M,
+        );
+        assert_eq!(
+            validate_terrain_interaction_v2(&world, &rules, &body_policy, &intent),
+            TerrainInteractionValidationV2::Rejected(TerrainInteractionRejectReasonV2::Occluded),
+            "the #400 body-origin path hits the intervening occluder"
+        );
+
+        let bounded_origin =
+            bounded_client_aim_origin_m(authoritative_body_origin, intent.ray.ray_origin_m)
+                .expect("normal camera lateral offset must be within Vanilla humanoid aim volume");
+        let bounded_policy =
+            TerrainInteractionValidationPolicyV2::new(bounded_origin, MAX_ACTION_REACH_M);
+
+        assert!(
+            matches!(
+                validate_terrain_interaction_v2(&world, &rules, &bounded_policy, &intent),
+                TerrainInteractionValidationV2::Accepted(_)
+            ),
+            "server validation should use the bounded captured camera/aim origin, not a different body-origin ray"
+        );
     }
 
     #[test]
