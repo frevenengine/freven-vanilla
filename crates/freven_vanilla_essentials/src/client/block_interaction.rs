@@ -564,6 +564,7 @@ fn select_presented_place_target(
 }
 
 const MAX_PRESENTED_RAYCAST_STEPS: usize = 128;
+const PRESENTED_RAYCAST_GRID_TIE_EPS: f32 = 1.0e-5;
 
 fn raycast_presented_cursor_hit(
     camera: &dyn ClientCameraHitProvider,
@@ -607,34 +608,34 @@ fn raycast_presented_cursor_hit(
     let t_delta_z = axis_t_delta(dir[2]);
 
     for _ in 0..MAX_PRESENTED_RAYCAST_STEPS {
-        let (axis, distance_m) = if t_max_x <= t_max_y && t_max_x <= t_max_z {
-            (0, t_max_x)
-        } else if t_max_y <= t_max_z {
-            (1, t_max_y)
-        } else {
-            (2, t_max_z)
-        };
+        let distance_m = t_max_x.min(t_max_y).min(t_max_z);
 
         if !distance_m.is_finite() || distance_m > max_distance_m {
             return None;
         }
 
-        match axis {
-            0 => {
-                pos.0 = pos.0.checked_add(step_x)?;
-                hit_face = face_for_axis_step(0, step_x)?;
-                t_max_x += t_delta_x;
-            }
-            1 => {
-                pos.1 = pos.1.checked_add(step_y)?;
-                hit_face = face_for_axis_step(1, step_y)?;
-                t_max_y += t_delta_y;
-            }
-            _ => {
-                pos.2 = pos.2.checked_add(step_z)?;
-                hit_face = face_for_axis_step(2, step_z)?;
-                t_max_z += t_delta_z;
-            }
+        let cross_x =
+            t_max_x.is_finite() && (t_max_x - distance_m).abs() <= PRESENTED_RAYCAST_GRID_TIE_EPS;
+        let cross_y =
+            t_max_y.is_finite() && (t_max_y - distance_m).abs() <= PRESENTED_RAYCAST_GRID_TIE_EPS;
+        let cross_z =
+            t_max_z.is_finite() && (t_max_z - distance_m).abs() <= PRESENTED_RAYCAST_GRID_TIE_EPS;
+
+        hit_face = presented_raycast_entered_face_for_crossed_axes(
+            dir, step_x, step_y, step_z, cross_x, cross_y, cross_z,
+        )?;
+
+        if cross_x {
+            pos.0 = pos.0.checked_add(step_x)?;
+            t_max_x += t_delta_x;
+        }
+        if cross_y {
+            pos.1 = pos.1.checked_add(step_y)?;
+            t_max_y += t_delta_y;
+        }
+        if cross_z {
+            pos.2 = pos.2.checked_add(step_z)?;
+            t_max_z += t_delta_z;
         }
 
         if presented_block_id_at(camera, pos, batch_predicted_edits)
@@ -703,16 +704,51 @@ fn axis_t_delta(direction: f32) -> f32 {
     }
 }
 
-fn face_for_axis_step(axis: usize, step: i32) -> Option<ClientBlockFace> {
-    match (axis, step) {
-        (0, 1) => Some(ClientBlockFace::NegX),
-        (0, -1) => Some(ClientBlockFace::PosX),
-        (1, 1) => Some(ClientBlockFace::NegY),
-        (1, -1) => Some(ClientBlockFace::PosY),
-        (2, 1) => Some(ClientBlockFace::NegZ),
-        (2, -1) => Some(ClientBlockFace::PosZ),
-        _ => None,
+fn presented_raycast_entered_face_for_crossed_axes(
+    dir: [f32; 3],
+    step_x: i32,
+    step_y: i32,
+    step_z: i32,
+    cross_x: bool,
+    cross_y: bool,
+    cross_z: bool,
+) -> Option<ClientBlockFace> {
+    let mut best: Option<(f32, ClientBlockFace)> = None;
+
+    if cross_x {
+        best = Some((
+            dir[0].abs(),
+            if step_x > 0 {
+                ClientBlockFace::NegX
+            } else {
+                ClientBlockFace::PosX
+            },
+        ));
     }
+
+    if cross_y {
+        let face = if step_y > 0 {
+            ClientBlockFace::NegY
+        } else {
+            ClientBlockFace::PosY
+        };
+        if best.is_none_or(|(weight, _)| dir[1].abs() > weight) {
+            best = Some((dir[1].abs(), face));
+        }
+    }
+
+    if cross_z {
+        let face = if step_z > 0 {
+            ClientBlockFace::NegZ
+        } else {
+            ClientBlockFace::PosZ
+        };
+        if best.is_none_or(|(weight, _)| dir[2].abs() > weight) {
+            best = Some((dir[2].abs(), face));
+        }
+    }
+
+    best.map(|(_, face)| face)
 }
 
 fn opposite_dominant_face(dir: [f32; 3]) -> ClientBlockFace {
@@ -2151,6 +2187,60 @@ mod tests {
         assert!(
             state.pending_place.is_none(),
             "pending place must be consumed by exact inverse coalescing"
+        );
+    }
+
+    #[test]
+    fn presented_raycast_edge_tie_steps_all_crossed_axes_before_testing_hit() {
+        let camera_ray = ClientCameraRay {
+            origin: [0.5, 1.5, -0.5],
+            direction: [0.0, -0.70710677, 0.70710677],
+        };
+
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (0, 0, 0),
+            face: ClientBlockFace::PosY,
+            distance_m: 1.0,
+        })
+        .with_block((0, 0, -1), 1)
+        .with_block((0, 0, 0), 2);
+        camera.camera_ray = Some(camera_ray);
+
+        let hit = raycast_presented_cursor_hit(&camera, camera_ray, 10.0, &[])
+            .expect("ray should hit the geometrically entered block");
+
+        assert_eq!(
+            hit.block_pos,
+            (0, 0, 0),
+            "presented interaction raycast must step all tied grid axes before testing occupancy"
+        );
+    }
+
+    #[test]
+    fn presented_raycast_corner_tie_does_not_pick_single_axis_side_voxel() {
+        let camera_ray = ClientCameraRay {
+            origin: [0.5, 0.5, 0.5],
+            direction: [0.57735026, 0.57735026, 0.57735026],
+        };
+
+        let mut camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (1, 1, 1),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.0,
+        })
+        .with_block((1, 0, 0), 1)
+        .with_block((0, 1, 0), 1)
+        .with_block((0, 0, 1), 1)
+        .with_block((1, 1, 1), 2);
+        camera.camera_ray = Some(camera_ray);
+
+        let hit = raycast_presented_cursor_hit(&camera, camera_ray, 10.0, &[])
+            .expect("ray should hit the corner-entered block");
+
+        assert_eq!(
+            hit.block_pos,
+            (1, 1, 1),
+            "presented interaction corner ties must not select a side-touch voxel"
         );
     }
 
