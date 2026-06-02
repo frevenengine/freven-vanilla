@@ -10,9 +10,47 @@ use freven_block_api::{
     validate_terrain_interaction_v2_report,
 };
 use freven_block_guest::BlockMutation;
-use freven_block_sdk_types::BlockRuntimeId;
+use freven_block_sdk_types::{BlockRuntimeId, BlockShapeBox};
 use freven_mod_api::{LogLevel, emit_log};
-use freven_world_api::{ActionCmdView, ActionContext, ActionHandler, ActionOutcome};
+use freven_world_api::{
+    ActionCmdView, ActionContext, ActionHandler, ActionOutcome, ActionRejectReason,
+    PlayerCollisionAabb,
+};
+
+fn axis_ranges_overlap_strict(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_min < b_max && a_max > b_min
+}
+
+fn block_collision_box_overlaps_player(
+    block_pos: (i32, i32, i32),
+    bounds: BlockShapeBox,
+    player: PlayerCollisionAabb,
+) -> bool {
+    let block_min = [
+        block_pos.0 as f32 + bounds.min[0],
+        block_pos.1 as f32 + bounds.min[1],
+        block_pos.2 as f32 + bounds.min[2],
+    ];
+    let block_max = [
+        block_pos.0 as f32 + bounds.max[0],
+        block_pos.1 as f32 + bounds.max[1],
+        block_pos.2 as f32 + bounds.max[2],
+    ];
+    let player_min = [
+        player.center_m[0] - player.half_extents_m[0],
+        player.center_m[1] - player.half_extents_m[1],
+        player.center_m[2] - player.half_extents_m[2],
+    ];
+    let player_max = [
+        player.center_m[0] + player.half_extents_m[0],
+        player.center_m[1] + player.half_extents_m[1],
+        player.center_m[2] + player.half_extents_m[2],
+    ];
+
+    axis_ranges_overlap_strict(block_min[0], block_max[0], player_min[0], player_max[0])
+        && axis_ranges_overlap_strict(block_min[1], block_max[1], player_min[1], player_max[1])
+        && axis_ranges_overlap_strict(block_min[2], block_max[2], player_min[2], player_max[2])
+}
 
 #[derive(Debug, Default)]
 pub struct PlaceActionHandler;
@@ -35,6 +73,9 @@ impl ActionHandler for PlaceActionHandler {
             return ActionOutcome::Rejected;
         };
         let Some(player_center_pos) = character_physics.player_position(ctx.player_id) else {
+            return ActionOutcome::Rejected;
+        };
+        let Some(player_collision) = character_physics.player_collision_aabb(ctx.player_id) else {
             return ActionOutcome::Rejected;
         };
 
@@ -177,6 +218,43 @@ impl ActionHandler for PlaceActionHandler {
             );
             return ActionOutcome::Rejected;
         };
+
+        let mut placement_occupied = false;
+        block_authority.visit_collision_boxes(place.block_id, &mut |bounds| {
+            if block_collision_box_overlaps_player(target_pos, bounds, player_collision) {
+                placement_occupied = true;
+            }
+        });
+
+        if placement_occupied {
+            tracing::debug!(
+                target: "freven_vanilla_essentials::actions::place",
+                player_id = ctx.player_id,
+                action_seq = cmd.seq,
+                intent_action_seq = ?intent.identity.action_seq,
+                at_input_seq = cmd.at_input_seq,
+                target_pos = ?target_pos,
+                block_id = ?place.block_id,
+                player_collision = ?player_collision,
+                "place action rejected: placement occupied by authoritative player body",
+            );
+            emit_log(
+                LogLevel::Debug,
+                format!(
+                    "place action rejected: placement occupied player_id={} action_seq={} \
+                     intent_action_seq={:?} at_input_seq={} target_pos={:?} block_id={:?} \
+                     player_collision={:?}",
+                    ctx.player_id,
+                    cmd.seq,
+                    intent.identity.action_seq,
+                    cmd.at_input_seq,
+                    target_pos,
+                    place.block_id,
+                    player_collision,
+                ),
+            );
+            return ActionOutcome::rejected_with(ActionRejectReason::PlacementOccupied);
+        }
 
         let mutation_result = block_authority.try_apply(&BlockMutation::SetBlock {
             pos: target_pos,
