@@ -1506,6 +1506,16 @@ mod tests {
         fn is_solid(&self, block_id: BlockRuntimeId) -> bool {
             block_id.0 != 0
         }
+
+        fn visit_collision_boxes(
+            &self,
+            block_id: BlockRuntimeId,
+            emit: &mut dyn FnMut(freven_block_sdk_types::BlockShapeBox),
+        ) {
+            if self.is_solid(block_id) {
+                emit(freven_block_sdk_types::BlockShapeBox::full_block());
+            }
+        }
     }
 
     impl BlockAuthority for TestAuthority {
@@ -1548,6 +1558,16 @@ mod tests {
     impl CharacterPhysicsQuery for TestPhysics {
         fn player_position(&self, _player_id: u64) -> Option<[f32; 3]> {
             Some(self.pos)
+        }
+
+        fn player_collision_aabb(
+            &self,
+            _player_id: u64,
+        ) -> Option<freven_world_api::PlayerCollisionAabb> {
+            Some(freven_world_api::PlayerCollisionAabb::new(
+                self.pos,
+                [0.3, 0.9, 0.3],
+            ))
         }
     }
 
@@ -2659,6 +2679,48 @@ mod tests {
         let mut handler = crate::actions::r#break::BreakActionHandler;
         assert_eq!(handler.handle(&mut ctx, &cmd), ActionOutcome::Applied);
         assert_eq!(authority.block(2, 1, 0), Some(BlockRuntimeId(0)));
+    }
+
+    #[test]
+    fn server_rejects_v2_place_inside_player_body_with_placement_occupied_reason() {
+        let physics = TestPhysics::default();
+        let payload = try_encode_place_payload_v2(&server_place_intent(
+            (1, 1, 0),
+            (0, 1, 0),
+            BlockRuntimeId(3),
+            42,
+            1,
+        ))
+        .expect("encode place v2");
+        let cmd = ActionCmdView {
+            action_kind: ActionKindId(2),
+            level_id: 1,
+            stream_epoch: 1,
+            seq: 1,
+            at_input_seq: 42,
+            payload: &payload,
+        };
+        let mut services = NoopServices;
+        let mut authority = TestAuthority::default()
+            .with_block((0, 1, 0), 0)
+            .with_block((1, 1, 0), 1);
+        let mut ctx = ActionContext::new(
+            None,
+            Some(&mut authority),
+            Some(&physics),
+            Some(&mut services),
+            7,
+            42,
+        );
+
+        let mut handler = crate::actions::place::PlaceActionHandler;
+        assert_eq!(
+            handler.handle(&mut ctx, &cmd),
+            ActionOutcome::RejectedWithReason(
+                freven_world_api::ActionRejectReason::PlacementOccupied
+            )
+        );
+        assert_eq!(authority.block(0, 1, 0), Some(BlockRuntimeId(0)));
     }
 
     #[test]
