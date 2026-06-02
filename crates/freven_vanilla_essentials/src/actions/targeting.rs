@@ -52,11 +52,15 @@ fn vec3_is_finite(v: [f32; 3]) -> bool {
     v.into_iter().all(f32::is_finite)
 }
 
-fn humanoid_half_height_m() -> f32 {
+pub(crate) fn humanoid_collision_half_extents_m() -> [f32; 3] {
     match humanoid_config().shape {
-        CharacterShape::Aabb { half_extents } => half_extents[1],
-        _ => VANILLA_HUMANOID_AABB_HALF_HEIGHT_M,
+        CharacterShape::Aabb { half_extents } => half_extents,
+        _ => [0.3, VANILLA_HUMANOID_AABB_HALF_HEIGHT_M, 0.3],
     }
+}
+
+fn humanoid_half_height_m() -> f32 {
+    humanoid_collision_half_extents_m()[1]
 }
 
 #[cfg(test)]

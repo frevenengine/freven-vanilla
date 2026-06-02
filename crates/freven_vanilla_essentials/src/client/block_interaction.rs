@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::action_payloads::{try_encode_break_payload_v2, try_encode_place_payload_v2};
 use crate::actions::targeting::{
-    MAX_ACTION_REACH_M, bounded_client_aim_origin_m, humanoid_interaction_origin_m,
+    MAX_ACTION_REACH_M, bounded_client_aim_origin_m, humanoid_collision_half_extents_m,
+    humanoid_interaction_origin_m,
 };
 use crate::{STONE_KEY, break_action_kind_id, place_action_kind_id};
 use freven_avatar_api::{ClientApi, ClientLifecycleHandler, ClientTickApi};
@@ -19,7 +20,7 @@ use freven_block_api::{
 use freven_block_guest::{
     BlockQueryRequest, BlockQueryResponse, BlockServiceRequest, BlockServiceResponse,
 };
-use freven_block_sdk_types::BlockRuntimeId;
+use freven_block_sdk_types::{BlockRuntimeId, BlockShapeBox};
 use freven_mod_api::{LogLevel, emit_log};
 use freven_world_api::{
     ClientActionRequest, ClientActionSubmitError, Services, WorldServiceRequest,
@@ -491,6 +492,18 @@ struct LocalPredictionAdmission {
     place_authoritative_block: Option<BlockRuntimeId>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalPredictionRejectReason {
+    Terrain(TerrainInteractionRejectReasonV2),
+    PlacementOccupied,
+}
+
+impl LocalPredictionRejectReason {
+    const fn terrain(reason: TerrainInteractionRejectReasonV2) -> Self {
+        Self::Terrain(reason)
+    }
+}
+
 struct ClientPredictedTerrainWorld<'a> {
     camera: &'a dyn ClientCameraHitProvider,
     batch_predicted_edits: &'a [ClientPredictedEdit],
@@ -875,15 +888,19 @@ fn validate_local_prediction_admission(
     allowed_place_block_id: Option<BlockRuntimeId>,
     intent: &TerrainInteractionIntentV2,
     batch_predicted_edits: &[ClientPredictedEdit],
-) -> Result<LocalPredictionAdmission, TerrainInteractionRejectReasonV2> {
+) -> Result<LocalPredictionAdmission, LocalPredictionRejectReason> {
     let Some(player_center_pos_m) = local_player_center_pos_m(players) else {
-        return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
+        return Err(LocalPredictionRejectReason::terrain(
+            TerrainInteractionRejectReasonV2::PolicyDenied,
+        ));
     };
     let authoritative_origin_m = humanoid_interaction_origin_m(player_center_pos_m);
     let Some(interaction_origin_m) =
         bounded_client_aim_origin_m(authoritative_origin_m, intent.ray.ray_origin_m)
     else {
-        return Err(TerrainInteractionRejectReasonV2::PolicyDenied);
+        return Err(LocalPredictionRejectReason::terrain(
+            TerrainInteractionRejectReasonV2::PolicyDenied,
+        ));
     };
     let mut policy =
         TerrainInteractionValidationPolicyV2::new(interaction_origin_m, MAX_ACTION_REACH_M);
@@ -901,7 +918,17 @@ fn validate_local_prediction_admission(
     };
     match validate_terrain_interaction_v2(&world, &rules, &policy, intent) {
         TerrainInteractionValidationV2::Accepted(_) => {}
-        TerrainInteractionValidationV2::Rejected(reason) => return Err(reason),
+        TerrainInteractionValidationV2::Rejected(reason) => {
+            return Err(LocalPredictionRejectReason::terrain(reason));
+        }
+    }
+
+    if local_place_overlaps_vanilla_humanoid_body(
+        intent,
+        allowed_place_block_id,
+        player_center_pos_m,
+    ) {
+        return Err(LocalPredictionRejectReason::PlacementOccupied);
     }
 
     let target_pos = intent.hit.hit_block_pos;
@@ -919,6 +946,84 @@ fn validate_local_prediction_admission(
         place_predicted_block,
         place_authoritative_block,
     })
+}
+
+fn local_place_overlaps_vanilla_humanoid_body(
+    intent: &TerrainInteractionIntentV2,
+    allowed_place_block_id: Option<BlockRuntimeId>,
+    player_center_pos_m: [f32; 3],
+) -> bool {
+    let Some(place) = intent.place.as_ref() else {
+        return false;
+    };
+    if Some(place.block_id) != allowed_place_block_id {
+        return false;
+    }
+
+    // rc10 Vanilla places one authored full-collision cube. The long-term
+    // generic client-side body/shape query is tracked in freven-sdk#127.
+    let mut occupied = false;
+    visit_vanilla_client_place_collision_boxes(
+        place.block_id,
+        allowed_place_block_id,
+        &mut |bounds| {
+            if block_collision_box_overlaps_aabb(
+                place.placement_pos,
+                bounds,
+                player_center_pos_m,
+                humanoid_collision_half_extents_m(),
+            ) {
+                occupied = true;
+            }
+        },
+    );
+    occupied
+}
+
+fn visit_vanilla_client_place_collision_boxes(
+    block_id: BlockRuntimeId,
+    allowed_place_block_id: Option<BlockRuntimeId>,
+    emit: &mut dyn FnMut(BlockShapeBox),
+) {
+    if Some(block_id) == allowed_place_block_id {
+        emit(BlockShapeBox::full_block());
+    }
+}
+
+fn axis_ranges_overlap_strict(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
+    a_min < b_max && a_max > b_min
+}
+
+fn block_collision_box_overlaps_aabb(
+    block_pos: (i32, i32, i32),
+    bounds: BlockShapeBox,
+    center_m: [f32; 3],
+    half_extents_m: [f32; 3],
+) -> bool {
+    let block_min = [
+        block_pos.0 as f32 + bounds.min[0],
+        block_pos.1 as f32 + bounds.min[1],
+        block_pos.2 as f32 + bounds.min[2],
+    ];
+    let block_max = [
+        block_pos.0 as f32 + bounds.max[0],
+        block_pos.1 as f32 + bounds.max[1],
+        block_pos.2 as f32 + bounds.max[2],
+    ];
+    let body_min = [
+        center_m[0] - half_extents_m[0],
+        center_m[1] - half_extents_m[1],
+        center_m[2] - half_extents_m[2],
+    ];
+    let body_max = [
+        center_m[0] + half_extents_m[0],
+        center_m[1] + half_extents_m[1],
+        center_m[2] + half_extents_m[2],
+    ];
+
+    axis_ranges_overlap_strict(block_min[0], block_max[0], body_min[0], body_max[0])
+        && axis_ranges_overlap_strict(block_min[1], block_max[1], body_min[1], body_max[1])
+        && axis_ranges_overlap_strict(block_min[2], block_max[2], body_min[2], body_max[2])
 }
 
 fn local_player_center_pos_m(players: &mut dyn ClientPlayerProvider) -> Option<[f32; 3]> {
@@ -969,7 +1074,7 @@ fn log_local_validation_reject(
     tick: &mut ClientTickApi<'_>,
     action: &str,
     intent: &TerrainInteractionIntentV2,
-    reason: TerrainInteractionRejectReasonV2,
+    reason: LocalPredictionRejectReason,
 ) {
     tracing::debug!(
         target: "freven_vanilla_essentials::client::block_interaction",
@@ -2040,13 +2145,13 @@ mod tests {
         let mut input =
             OrderedTestInput::new(vec![ClientMouseButton::Right, ClientMouseButton::Right]);
         let mut camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (2, 1, 0),
+            block_pos: (3, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 1.5,
         })
-        .with_block((0, 1, 0), 0)
         .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1);
+        .with_block((2, 1, 0), 0)
+        .with_block((3, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -2074,14 +2179,14 @@ mod tests {
         assert_eq!(
             interaction.requests[0].predicted,
             vec![ClientPredictedEdit {
-                pos: (1, 1, 0),
+                pos: (2, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit {
-                pos: (0, 1, 0),
+                pos: (1, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
@@ -2442,12 +2547,12 @@ mod tests {
             right: true,
         };
         let mut first_camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (2, 1, 0),
+            block_pos: (3, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 1.5,
         })
-        .with_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1);
+        .with_block((2, 1, 0), 0)
+        .with_block((3, 1, 0), 1);
         let mut interaction = RecordingInteraction::default();
         let mut players = NoopPlayers;
 
@@ -2468,16 +2573,16 @@ mod tests {
             right: true,
         };
         let mut second_camera = PresentedCamera::new(ClientCursorHit {
-            block_pos: (1, 1, 0),
+            block_pos: (2, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 0.5,
         })
-        .with_block((0, 1, 0), 0)
-        .with_predicted_block((1, 1, 0), 3)
-        .with_authoritative_block((1, 1, 0), 0)
-        .with_block((2, 1, 0), 1)
+        .with_block((1, 1, 0), 0)
+        .with_predicted_block((2, 1, 0), 3)
+        .with_authoritative_block((2, 1, 0), 0)
+        .with_block((3, 1, 0), 1)
         .with_authoritative_hit(Some(ClientCursorHit {
-            block_pos: (2, 1, 0),
+            block_pos: (3, 1, 0),
             face: ClientBlockFace::NegX,
             distance_m: 1.5,
         }));
@@ -2498,14 +2603,14 @@ mod tests {
         assert_eq!(
             interaction.requests[0].predicted,
             vec![ClientPredictedEdit {
-                pos: (1, 1, 0),
+                pos: (2, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
         assert_eq!(
             interaction.requests[1].predicted,
             vec![ClientPredictedEdit {
-                pos: (0, 1, 0),
+                pos: (1, 1, 0),
                 predicted_block_id: BlockRuntimeId(3),
             }]
         );
@@ -2532,6 +2637,34 @@ mod tests {
             client_validation.is_ok(),
             "#79-style predicted-vs-authoritative block-id mismatch alone must not reject a \
              presented-valid local prediction: {client_validation:?}"
+        );
+    }
+
+    #[test]
+    fn local_place_inside_player_body_rejects_before_prediction_submit() {
+        ensure_action_kinds();
+
+        let intent = server_place_intent((1, 1, 0), (0, 1, 0), BlockRuntimeId(3), 42, 1);
+        let camera = PresentedCamera::new(ClientCursorHit {
+            block_pos: (1, 1, 0),
+            face: ClientBlockFace::NegX,
+            distance_m: 1.5,
+        })
+        .with_block((1, 1, 0), 1)
+        .with_block((0, 1, 0), 0);
+        let mut players = NoopPlayers;
+
+        let client_validation = validate_local_prediction_admission(
+            &camera,
+            &mut players,
+            Some(BlockRuntimeId(3)),
+            &intent,
+            &[],
+        );
+
+        assert_eq!(
+            client_validation,
+            Err(LocalPredictionRejectReason::PlacementOccupied)
         );
     }
 
@@ -2582,7 +2715,9 @@ mod tests {
 
         assert_eq!(
             client_validation,
-            Err(TerrainInteractionRejectReasonV2::Occluded)
+            Err(LocalPredictionRejectReason::terrain(
+                TerrainInteractionRejectReasonV2::Occluded
+            ))
         );
     }
 
